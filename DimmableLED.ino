@@ -11,6 +11,7 @@
 //#define MY_RADIO_RFM69
 #define MY_REPEATER_FEATURE
 #define MY_OTA_FIRMWARE_FEATURE
+#define MY_TRANSPORT_WAIT_READY_MS 1
 
 #define MY_NODE_ID 6
 
@@ -20,9 +21,6 @@
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "1"
 #define SKETCH_MINOR_VER "1"
-
-MyMessage dimmerMsg(0, V_DIMMER);
-MyMessage lightMsg(0, V_LIGHT);
 
 void setPwmFrequency(int pin, int divisor) {
   byte mode;
@@ -60,7 +58,9 @@ class Dimmer {
     OFF,
     ON,
     DIMMING_UP,
-    DIMMING_DOWN
+    SLOW_DIMMING_UP,
+    DIMMING_DOWN,
+    SLOW_DIMMING_DOWN
   };
   uint8_t pin_;
   bool lastPinValue_;
@@ -69,6 +69,7 @@ class Dimmer {
   uint8_t requestedLevel_;
   unsigned long nextChangeTime_;
   bool inverted_;
+  unsigned long lastPinRiseTime_;
 
   int fadeDelay_()
   {
@@ -87,93 +88,286 @@ class Dimmer {
   }
 
   void setLevel_() {
+    static int last = currentLevel_;
+    if (abs(last - currentLevel_) > 1) {
+      Serial.print("ups, last ");
+      Serial.print(last);
+      Serial.print(" curent ");
+      Serial.println(currentLevel_);
+    }
+    last = currentLevel_;
     analogWrite(pin_, inverted_ ? 255 - currentLevel_ : currentLevel_);
   }
 
   bool updateLevel_() {
-    if (state_ == OFF || state_ == ON)
+    if (isInIdleState_())
       return false;
     unsigned long currentTime = millis();
     if (currentTime < nextChangeTime_)
       return false;
-    if (state_ == DIMMING_DOWN && currentLevel_ > requestedLevel_) {
-      currentLevel_--;
-    }
-    else if (state_ == DIMMING_UP && currentLevel_ < requestedLevel_) {
-      currentLevel_++;
-    }
+    handleDimming_();
     setLevel_();
-    if (state_ == DIMMING_UP && currentLevel_ == requestedLevel_) {
-      state_ = ON;
-      return true;
+    int fadeDelay = fadeDelay_();
+    if (isInSlowDimming_())
+      fadeDelay *= 3;
+    nextChangeTime_ = nextChangeTime_ + fadeDelay;
+    return isInIdleState_();
+  }
+
+  void handleDimming_() {
+    if (state_ == DIMMING_DOWN and currentLevel_ > requestedLevel_) {
+      currentLevel_--;
+      if (currentLevel_ == requestedLevel_) {
+        state_ = OFF;
+      }
     }
-    else if (state_ == DIMMING_DOWN && currentLevel_ == requestedLevel_) {
-      state_ = OFF;
-      return true;
+    else if (state_ == DIMMING_UP and currentLevel_ < requestedLevel_) {
+      currentLevel_++;
+      if (currentLevel_ == requestedLevel_) {
+        state_ = ON;
+      }
+    }
+    else if (state_ == SLOW_DIMMING_UP) {
+      if (currentLevel_ == 255) {
+        currentLevel_--;
+        state_ = SLOW_DIMMING_DOWN;
+      }
+      else {
+        currentLevel_++;
+      }
+    }
+    else if (state_ == SLOW_DIMMING_DOWN) {
+      if (currentLevel_ == 1) {
+        currentLevel_++;
+        state_ = SLOW_DIMMING_UP;
+      }
+      else {
+        currentLevel_--;
+      }
+    }
+  }
+
+  bool isRising_(bool pinValue) {
+    return pinValue == true and lastPinValue_ == false;
+  }
+
+  bool isHeldLongEnough_(bool pinValue) {
+    return pinValue == true and lastPinValue_ == true and millis() > lastPinRiseTime_ + 500;
+  }
+
+  bool isFalling(bool pinValue) {
+    return pinValue == false and lastPinValue_ == true;
+  }
+
+  bool isInSlowDimming_() {
+    return state_ == SLOW_DIMMING_DOWN or state_ == SLOW_DIMMING_UP;
+  }
+
+  bool isInIdleState_() {
+    return state_ == OFF or state_ == ON;
+  }
+
+  void triggerLevelChange_() {
+    nextChangeTime_ = millis();
+  }
+
+  void startSlowDimming_() {
+    triggerLevelChange_();
+    if (currentLevel_ > 255/2) {
+      state_ = SLOW_DIMMING_DOWN;
     }
     else {
-      nextChangeTime_ = nextChangeTime_ + fadeDelay_();
-      return false;
+      state_ = SLOW_DIMMING_UP;
     }
   }
 
-public:
-  Dimmer(uint8_t pin, bool inverted = false, int pwmDivisor = 0)
-    : pin_(pin), lastPinValue_(inverted),
-      state_(OFF), currentLevel_(0),
-      requestedLevel_(0), nextChangeTime_(0),
-      inverted_(inverted) {
-    setLevel_();
-    if (pwmDivisor > 0)
-      setPwmFrequency(pin, pwmDivisor);
+  void startDimming_() {
+    triggerLevelChange_();
+    if (state_ == OFF or state_ == DIMMING_DOWN) {
+      requestedLevel_ = 255;
+      state_ = DIMMING_UP;
+    }
+    else if (state_ == ON or state_ == DIMMING_UP) {
+      requestedLevel_ = 0;
+      state_ = DIMMING_DOWN;
+    }
   }
 
-  bool update(bool value) {
-    if (value == true && lastPinValue_ == false) {
-      nextChangeTime_ = millis();
-      if (state_ == OFF || state_ == DIMMING_DOWN) {
-        requestedLevel_ = 255;
-        state_ = DIMMING_UP;
-      }
-      else if (state_ == ON || state_ == DIMMING_UP) {
-        requestedLevel_ = 0;
-        state_ = DIMMING_DOWN;
-      }
-    }
-    lastPinValue_ = value;
-    return updateLevel_();
-  }
-  void request(uint8_t value) {
-    if (value < currentLevel_) {
+  void requestDimming_(uint8_t level) {
+    triggerLevelChange_();
+    if (level < currentLevel_) {
       state_ = DIMMING_DOWN;
     }
     else {
       state_ = DIMMING_UP;
     }
-    nextChangeTime_ = millis();
-    requestedLevel_ = value;
+    requestedLevel_ = level;
   }
+
+  void stopSlowDimming_() {
+      state_ = ON;
+      requestedLevel_ = currentLevel_;
+  }
+
+public:
+  Dimmer(uint8_t pin, bool inverted, int pwmDivisor = 0)
+    : pin_(pin), lastPinValue_(false),
+      state_(OFF), currentLevel_(0),
+      requestedLevel_(0), nextChangeTime_(0),
+      inverted_(inverted) {
+    if (pwmDivisor > 0)
+      setPwmFrequency(pin, pwmDivisor);
+    setLevel_();
+  }
+
+  bool update(bool value) {
+    if (isRising_(value)) {
+      lastPinRiseTime_ = millis();
+    }
+    else if (isHeldLongEnough_(value)) {
+      if (not isInSlowDimming_()) {
+        triggerLevelChange_();
+        startSlowDimming_();
+      }
+    }
+    else if (isFalling(value)) {
+      if (isInSlowDimming_()) {
+        stopSlowDimming_();
+        lastPinValue_ = value;
+        return true;
+      }
+      else {
+        startDimming_();
+      }
+    }
+    lastPinValue_ = value;
+    return updateLevel_();
+  }
+
+  void request(uint8_t value) {
+    if (isInSlowDimming_()) {
+      return;
+    }
+    requestDimming_(value);
+  }
+
   uint8_t getLevel() {
     return currentLevel_;
   }
+
 };
 
 class Switch {
   Bounce switch_;
   uint8_t activeLow_;
+  bool initValue_;
 public:
   Switch(uint8_t pin, unsigned long interval_ms, bool activeLow = false) : switch_(pin, interval_ms), activeLow_(activeLow) {
     pinMode(pin, INPUT);
     digitalWrite(pin, activeLow_ ? HIGH : LOW);
+    switch_.update();
   }
   bool update() {
     switch_.update();
-    return activeLow_ ? switch_.read() : !switch_.read();
+    return activeLow_ ? !switch_.read() : switch_.read();
   }
 };
 
-Dimmer dim1(3, true, 64);
-Switch sw1(A1, 50, true);
+class MyDimmerSwitch {
+  Dimmer dim_;
+  Switch sw_;
+  uint8_t childId_;
+  MyMessage dimmerMsg_;
+  MyMessage lightMsg_;
+  static const uint8_t MAX_DIMMERS = 10;
+  static uint8_t dimmersCount_;
+  static MyDimmerSwitch *dimmers_[MAX_DIMMERS];
+
+  void sendCurrentLevel_() {
+    uint8_t percentage = fromLevel(dim_.getLevel());
+    // Inform the gateway of the current DimmableLED's SwitchPower1 and LoadLevelStatus value...
+    for (int i=0; i<10; i++)
+      if (send(lightMsg_.set(percentage > 0 ? 1 : 0), true))
+        break;
+  
+    // hek comment: Is this really nessesary?
+    for (int i=0; i<10; i++)
+      if (send(dimmerMsg_.set(percentage), true))
+        break;
+  }
+
+public:
+  MyDimmerSwitch(uint8_t dimPin, bool inverted, int pwmDivisor, uint8_t switchPin, unsigned long interval_ms, bool activeLow)
+    : dim_(dimPin, inverted, pwmDivisor),
+      sw_(switchPin, interval_ms, activeLow),
+      childId_(dimmersCount_),
+      dimmerMsg_(childId_, V_DIMMER),
+      lightMsg_(childId_, V_LIGHT) {
+    if (dimmersCount_ < MAX_DIMMERS)
+      dimmers_[dimmersCount_++] = this;
+  }
+  static void request() {
+    for (size_t i=0; i<dimmersCount_; i++)
+      ::request(dimmers_[i]->childId_, V_DIMMER);
+  }
+  static void present() {
+    for (size_t i=0; i<dimmersCount_; i++)
+      ::present(dimmers_[i]->childId_, S_DIMMER);
+  }
+  static void update() {
+    for (size_t i=0; i<dimmersCount_; i++) {
+      MyDimmerSwitch * dimmer = dimmers_[i];
+      if (dimmer->dim_.update(dimmer->sw_.update()))
+        dimmer->sendCurrentLevel_();
+    }
+  }
+  void requestLevel(uint8_t level) {
+    dim_.request(level);
+  }
+  uint8_t getLevel() {
+    return dim_.getLevel();
+  }
+  static uint8_t fromPercentage(uint8_t percentage) {
+    return uint8_t(round(255.0*percentage/100));
+  }
+  static uint8_t fromLevel(uint8_t level) {
+    return uint8_t(round(100.0*level/255));
+  }
+  static void receive(const MyMessage &message) {
+    if (message.isAck())
+      return;
+    if (message.sensor > dimmersCount_-1)
+      return;
+    if (message.type == V_LIGHT || message.type == V_DIMMER) {
+      
+      //  Retrieve the power or dim level from the incoming request message
+      int requestedPercentage = atoi( message.data );
+  
+      // Adjust incoming level if this is a V_LIGHT variable update [0 == off, 1 == on]
+      requestedPercentage *= ( message.type == V_LIGHT ? 100 : 1 );
+  
+      // Clip incoming level to valid range of 0 to 100
+      requestedPercentage = requestedPercentage > 100 ? 100 : requestedPercentage;
+      requestedPercentage = requestedPercentage < 0   ? 0   : requestedPercentage;
+
+      MyDimmerSwitch * dimmer = dimmers_[message.sensor];
+      Serial.print("Changing dimmer [");
+      Serial.print(message.sensor);
+      Serial.print("] level to ");
+      Serial.print(requestedPercentage);
+      Serial.print( ", from " );
+      Serial.println(MyDimmerSwitch::fromLevel(dimmer->dim_.getLevel()));
+
+      dimmer->requestLevel(MyDimmerSwitch::fromPercentage(requestedPercentage));
+    }
+  }
+};
+
+uint8_t MyDimmerSwitch::dimmersCount_ = 0;
+MyDimmerSwitch * MyDimmerSwitch::dimmers_[MAX_DIMMERS];
+
+MyDimmerSwitch dimmer1(3, true, 64, A1, 50, true);
+MyDimmerSwitch dimmer2(6, false, 0, A2, 50, true);
 
 /***
  * Dimmable LED initialization method
@@ -182,7 +376,7 @@ void setup()
 {
   Serial.begin(115200);
   // Pull the gateway's current dim level - restore light level upon sendor node power-up
-  request( 0, V_DIMMER );
+  MyDimmerSwitch::request();
 }
 
 void presentation() {
@@ -190,7 +384,7 @@ void presentation() {
   sendSketchInfo(SKETCH_NAME, SKETCH_MAJOR_VER "." SKETCH_MINOR_VER);
 
   // Register the LED Dimmable Light with the gateway
-  present( 0, S_DIMMER );
+  MyDimmerSwitch::present();
 }
 
 /***
@@ -198,45 +392,10 @@ void presentation() {
  */
 void loop()
 {
-  if (dim1.update(sw1.update()))
-    sendCurrentLevel(dim1.getLevel());
+  MyDimmerSwitch::update();
 }
 
 void receive(const MyMessage &message) {
-  if (message.isAck())
-    return;
-  if (message.type == V_LIGHT || message.type == V_DIMMER) {
-    
-    //  Retrieve the power or dim level from the incoming request message
-    int requestedLevel = atoi( message.data );
-    
-    // Adjust incoming level if this is a V_LIGHT variable update [0 == off, 1 == on]
-    requestedLevel *= ( message.type == V_LIGHT ? 100 : 1 );
-    
-    // Clip incoming level to valid range of 0 to 100
-    requestedLevel = requestedLevel > 100 ? 100 : requestedLevel;
-    requestedLevel = requestedLevel < 0   ? 0   : requestedLevel;
-
-    Serial.print( "Changing level to " );
-    Serial.print( requestedLevel );
-    Serial.print( ", from " ); 
-    Serial.println( dim1.getLevel() );
-
-    requestedLevel = int(round(255.0*requestedLevel/100));
-    dim1.request(requestedLevel);
-  }
-}
-
-void sendCurrentLevel(uint8_t currentLevel) {
-  uint8_t level = uint8_t(round(100.0 * currentLevel / 255));
-  // Inform the gateway of the current DimmableLED's SwitchPower1 and LoadLevelStatus value...
-  for (int i=0; i<10; i++)
-    if (send(lightMsg.set(level > 0 ? 1 : 0), true))
-      break;
-
-  // hek comment: Is this really nessesary?
-  for (int i=0; i<10; i++)
-    if (send(dimmerMsg.set(level), true))
-      break;
+  MyDimmerSwitch::receive(message);
 }
 
