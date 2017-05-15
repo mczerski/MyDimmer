@@ -34,9 +34,9 @@ void setPwmFrequency(int pin, int divisor) {
       default: return;
     }
     if(pin == 5 || pin == 6) {
-      TCCR0B = TCCR0B & (0b11111000 | mode);
+      TCCR0B = (TCCR0B & 0b11111000) | mode;
     } else {
-      TCCR1B = TCCR1B & (0b11111000 | mode);
+      TCCR1B = (TCCR1B & 0b11111000) | mode;
     }
   } else if(pin == 3 || pin == 11) {
     switch(divisor) {
@@ -49,7 +49,7 @@ void setPwmFrequency(int pin, int divisor) {
       case 1024: mode = 0x07; break;
       default: return;
     }
-    TCCR2B = TCCR2B & (0b11111000 | mode);
+    TCCR2B = (TCCR2B & 0b11111000) | mode;
   }
 }
 
@@ -88,14 +88,6 @@ class Dimmer {
   }
 
   void setLevel_() {
-    static int last = currentLevel_;
-    if (abs(last - currentLevel_) > 1) {
-      Serial.print("ups, last ");
-      Serial.print(last);
-      Serial.print(" curent ");
-      Serial.println(currentLevel_);
-    }
-    last = currentLevel_;
     analogWrite(pin_, inverted_ ? 255 - currentLevel_ : currentLevel_);
   }
 
@@ -210,13 +202,11 @@ class Dimmer {
   }
 
 public:
-  Dimmer(uint8_t pin, bool inverted, int pwmDivisor = 0)
+  Dimmer(uint8_t pin, bool inverted)
     : pin_(pin), lastPinValue_(false),
       state_(OFF), currentLevel_(0),
       requestedLevel_(0), nextChangeTime_(0),
       inverted_(inverted) {
-    if (pwmDivisor > 0)
-      setPwmFrequency(pin, pwmDivisor);
     setLevel_();
   }
 
@@ -297,8 +287,8 @@ class MyDimmerSwitch {
   }
 
 public:
-  MyDimmerSwitch(uint8_t dimPin, bool inverted, int pwmDivisor, uint8_t switchPin, unsigned long interval_ms, bool activeLow)
-    : dim_(dimPin, inverted, pwmDivisor),
+  MyDimmerSwitch(uint8_t dimPin, bool inverted, uint8_t switchPin, unsigned long interval_ms, bool activeLow)
+    : dim_(dimPin, inverted),
       sw_(switchPin, interval_ms, activeLow),
       childId_(dimmersCount_),
       dimmerMsg_(childId_, V_DIMMER),
@@ -366,8 +356,9 @@ public:
 uint8_t MyDimmerSwitch::dimmersCount_ = 0;
 MyDimmerSwitch * MyDimmerSwitch::dimmers_[MAX_DIMMERS];
 
-MyDimmerSwitch dimmer1(3, true, 64, A1, 50, true);
-MyDimmerSwitch dimmer2(6, false, 0, A2, 50, true);
+MyDimmerSwitch dimmer1(3, true, A1, 50, true);
+MyDimmerSwitch dimmer3(6, true, A1, 50, true);
+MyDimmerSwitch dimmer5(10, false, A1, 50, true);
 
 /***
  * Dimmable LED initialization method
@@ -377,6 +368,9 @@ void setup()
   Serial.begin(115200);
   // Pull the gateway's current dim level - restore light level upon sendor node power-up
   MyDimmerSwitch::request();
+  setPwmFrequency(3, 64);
+  setPwmFrequency(6, 64);
+  setPwmFrequency(10, 64);
 }
 
 void presentation() {
