@@ -15,12 +15,17 @@
 
 #define MY_NODE_ID 6
 
-#include <MySensors.h>
+#include <MyMySensors.h>
 #include <Bounce2.h>
+#include <SoftTimer.h>
+#include <DallasTemperature.h>
+#include <OneWire.h>
+
+using namespace mymysensors;
 
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "1"
-#define SKETCH_MINOR_VER "1"
+#define SKETCH_MINOR_VER "5"
 
 void setPwmFrequency(int pin, int divisor) {
   byte mode;
@@ -107,15 +112,21 @@ class Dimmer {
   }
 
   void handleDimming_() {
-    if (state_ == DIMMING_DOWN and currentLevel_ > requestedLevel_) {
-      currentLevel_--;
-      if (currentLevel_ == requestedLevel_) {
+    if (state_ == DIMMING_DOWN) {
+      if (currentLevel_ > requestedLevel_) {
+        currentLevel_--;
+      }
+      if (currentLevel_ <= requestedLevel_) {
+        currentLevel_ = requestedLevel_;
         state_ = OFF;
       }
     }
-    else if (state_ == DIMMING_UP and currentLevel_ < requestedLevel_) {
-      currentLevel_++;
-      if (currentLevel_ == requestedLevel_) {
+    else if (state_ == DIMMING_UP) {
+      if (currentLevel_ < requestedLevel_) {
+        currentLevel_++;
+      }
+      if (currentLevel_ >= requestedLevel_) {
+        currentLevel_ = requestedLevel_;
         state_ = ON;
       }
     }
@@ -357,8 +368,35 @@ uint8_t MyDimmerSwitch::dimmersCount_ = 0;
 MyDimmerSwitch * MyDimmerSwitch::dimmers_[MAX_DIMMERS];
 
 MyDimmerSwitch dimmer1(3, true, A1, 50, true);
-MyDimmerSwitch dimmer3(6, true, A1, 50, true);
-MyDimmerSwitch dimmer5(10, false, A1, 50, true);
+MyDimmerSwitch dimmer2(5, true, A2, 50, true);
+MyDimmerSwitch dimmer3(6, true, A3, 50, true);
+MyDimmerSwitch dimmer4(9, false, A1, 50, true);
+MyDimmerSwitch dimmer5(10, false, A2, 50, true);
+MyValue<float> temperature(6, V_TEMP, S_TEMP);
+
+OneWire oneWire(18);
+DallasTemperature tempSensor(&oneWire);
+
+SoftTimer tempTimer;
+
+boolean startTempMeasurement(EventBase*);
+boolean readTempMeasurement(EventBase*)
+{
+  float temp = tempSensor.getTempCByIndex(0);
+  for (int i=0; i<10; i++)
+    if (temperature.updateValue(temp))
+      break;
+  tempTimer.once(startTempMeasurement, 600000);
+  return false;
+}
+
+boolean startTempMeasurement(EventBase*)
+{
+  tempSensor.requestTemperatures();
+  int16_t conversionTime = tempSensor.millisToWaitForConversion(tempSensor.getResolution());
+  tempTimer.once(readTempMeasurement, conversionTime);
+  return false;
+}
 
 /***
  * Dimmable LED initialization method
@@ -366,11 +404,12 @@ MyDimmerSwitch dimmer5(10, false, A1, 50, true);
 void setup()
 {
   Serial.begin(115200);
-  // Pull the gateway's current dim level - restore light level upon sendor node power-up
-  MyDimmerSwitch::request();
   setPwmFrequency(3, 64);
   setPwmFrequency(6, 64);
   setPwmFrequency(10, 64);
+  tempSensor.begin();
+  tempSensor.setWaitForConversion(false);
+  tempTimer.once(startTempMeasurement, 10000);
 }
 
 void presentation() {
@@ -379,6 +418,10 @@ void presentation() {
 
   // Register the LED Dimmable Light with the gateway
   MyDimmerSwitch::present();
+  temperature.presentValue();
+
+  // Pull the gateway's current dim level - restore light level upon sendor node power-up
+  MyDimmerSwitch::request();
 }
 
 /***
@@ -387,6 +430,7 @@ void presentation() {
 void loop()
 {
   MyDimmerSwitch::update();
+  tempTimer.update();
 }
 
 void receive(const MyMessage &message) {
