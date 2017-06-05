@@ -1,6 +1,6 @@
 // Enable debug prints to serial monitor
 //#define MY_DEBUG
-//#define MY_DEBUG2
+//#define MY_MY_DEBUG
 
 // Enable and select radio type attached
 #define MY_RADIO_NRF24
@@ -15,7 +15,7 @@
 
 #define MY_NODE_ID 6
 
-#include <MyMySensors.h>
+#include "MyMySensors/MyMySensors.h"
 #include <Bounce2.h>
 #include <SoftTimer.h>
 #include <DallasTemperature.h>
@@ -261,7 +261,6 @@ public:
 class Switch {
   Bounce switch_;
   uint8_t activeLow_;
-  bool initValue_;
 public:
   Switch(uint8_t pin, unsigned long interval_ms, bool activeLow = false) : switch_(pin, interval_ms), activeLow_(activeLow) {
     pinMode(pin, INPUT);
@@ -284,17 +283,11 @@ class MyDimmerSwitch {
   static uint8_t dimmersCount_;
   static MyDimmerSwitch *dimmers_[MAX_DIMMERS];
 
-  void sendCurrentLevel_() {
-    uint8_t percentage = fromLevel(dim_.getLevel());
-    // Inform the gateway of the current DimmableLED's SwitchPower1 and LoadLevelStatus value...
-    for (int i=0; i<10; i++)
-      if (send(lightMsg_.set(percentage > 0 ? 1 : 0), true))
-        break;
-  
-    // hek comment: Is this really nessesary?
-    for (int i=0; i<10; i++)
-      if (send(dimmerMsg_.set(percentage), true))
-        break;
+  static uint8_t fromPercentage_(uint8_t percentage) {
+    return uint8_t(round(255.0*percentage/100));
+  }
+  static uint8_t fromLevel_(uint8_t level) {
+    return uint8_t(round(100.0*level/255));
   }
 
 public:
@@ -319,8 +312,13 @@ public:
     for (size_t i=0; i<dimmersCount_; i++) {
       MyDimmerSwitch * dimmer = dimmers_[i];
       if (dimmer->dim_.update(dimmer->sw_.update()))
-        dimmer->sendCurrentLevel_();
+        dimmer->sendCurrentLevel();
     }
+  }
+  void sendCurrentLevel() {
+    uint8_t percentage = fromLevel_(dim_.getLevel());
+    sendValue(lightMsg_, percentage > 0 ? 1 : 0);
+    sendValue(dimmerMsg_, percentage);
   }
   void requestLevel(uint8_t level) {
     dim_.request(level);
@@ -328,39 +326,40 @@ public:
   uint8_t getLevel() {
     return dim_.getLevel();
   }
-  static uint8_t fromPercentage(uint8_t percentage) {
-    return uint8_t(round(255.0*percentage/100));
-  }
-  static uint8_t fromLevel(uint8_t level) {
-    return uint8_t(round(100.0*level/255));
-  }
-  static void receive(const MyMessage &message) {
-    if (message.isAck())
-      return;
+  static bool receive(const MyMessage &message) {
     if (message.sensor > dimmersCount_-1)
-      return;
-    if (message.type == V_LIGHT || message.type == V_DIMMER) {
-      
-      //  Retrieve the power or dim level from the incoming request message
-      int requestedPercentage = atoi( message.data );
-  
-      // Adjust incoming level if this is a V_LIGHT variable update [0 == off, 1 == on]
-      requestedPercentage *= ( message.type == V_LIGHT ? 100 : 1 );
-  
-      // Clip incoming level to valid range of 0 to 100
-      requestedPercentage = requestedPercentage > 100 ? 100 : requestedPercentage;
-      requestedPercentage = requestedPercentage < 0   ? 0   : requestedPercentage;
-
+      return false;
+    if (message.isAck())
+      return true;
+    if (not message.isAck() and (message.type == V_LIGHT || message.type == V_DIMMER)) {
       MyDimmerSwitch * dimmer = dimmers_[message.sensor];
-      Serial.print("Changing dimmer [");
-      Serial.print(message.sensor);
-      Serial.print("] level to ");
-      Serial.print(requestedPercentage);
-      Serial.print( ", from " );
-      Serial.println(MyDimmerSwitch::fromLevel(dimmer->dim_.getLevel()));
+      if (mGetCommand(message) == C_REQ) {
+        dimmer->sendCurrentLevel();
+      }
+      else if (mGetCommand(message) == C_SET) {
+        //  Retrieve the power or dim level from the incoming request message
+        int requestedPercentage = atoi( message.data );
+    
+        // Adjust incoming level if this is a V_LIGHT variable update [0 == off, 1 == on]
+        requestedPercentage *= ( message.type == V_LIGHT ? 100 : 1 );
+    
+        // Clip incoming level to valid range of 0 to 100
+        requestedPercentage = requestedPercentage > 100 ? 100 : requestedPercentage;
+        requestedPercentage = requestedPercentage < 0   ? 0   : requestedPercentage;
 
-      dimmer->requestLevel(MyDimmerSwitch::fromPercentage(requestedPercentage));
+        #ifdef MY_MY_DEBUG
+        Serial.print("Changing dimmer [");
+        Serial.print(message.sensor);
+        Serial.print("] level to ");
+        Serial.print(requestedPercentage);
+        Serial.print( ", from " );
+        Serial.println(MyDimmerSwitch::fromLevel_(dimmer->dim_.getLevel()));
+        #endif
+  
+        dimmer->requestLevel(MyDimmerSwitch::fromPercentage_(requestedPercentage));
+      }
     }
+    return true;
   }
 };
 
@@ -372,21 +371,19 @@ MyDimmerSwitch dimmer2(5, true, A2, 50, true);
 MyDimmerSwitch dimmer3(6, true, A3, 50, true);
 MyDimmerSwitch dimmer4(9, false, A1, 50, true);
 MyDimmerSwitch dimmer5(10, false, A2, 50, true);
-MyValue<float> temperature(6, V_TEMP, S_TEMP);
 
+static uint8_t tempSensorId = 6;
 OneWire oneWire(18);
 DallasTemperature tempSensor(&oneWire);
-
 SoftTimer tempTimer;
+MyMessage tempMsg(tempSensorId, V_TEMP);
+float temperature = 0;
 
 boolean startTempMeasurement(EventBase*);
 boolean readTempMeasurement(EventBase*)
 {
-  float temp = tempSensor.getTempCByIndex(0);
-  for (int i=0; i<10; i++)
-    if (temperature.updateValue(temp))
-      break;
-  tempTimer.once(startTempMeasurement, 600000);
+  temperature = tempSensor.getTempCByIndex(0);
+  tempTimer.once(startTempMeasurement, 60000);
   return false;
 }
 
@@ -409,7 +406,7 @@ void setup()
   setPwmFrequency(10, 64);
   tempSensor.begin();
   tempSensor.setWaitForConversion(false);
-  tempTimer.once(startTempMeasurement, 10000);
+  tempTimer.once(startTempMeasurement, 0);
 }
 
 void presentation() {
@@ -418,10 +415,7 @@ void presentation() {
 
   // Register the LED Dimmable Light with the gateway
   MyDimmerSwitch::present();
-  temperature.presentValue();
-
-  // Pull the gateway's current dim level - restore light level upon sendor node power-up
-  MyDimmerSwitch::request();
+  present(tempSensorId, S_TEMP);
 }
 
 /***
@@ -434,6 +428,11 @@ void loop()
 }
 
 void receive(const MyMessage &message) {
-  MyDimmerSwitch::receive(message);
+  if (message.isAck())
+    return;
+  bool handeled = MyDimmerSwitch::receive(message);
+  if (not handeled and message.sensor == tempSensorId and message.type == V_TEMP and mGetCommand(message) == C_REQ) {
+    sendValue(tempMsg, temperature);
+  }
 }
 
