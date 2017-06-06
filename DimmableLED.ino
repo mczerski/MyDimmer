@@ -25,7 +25,7 @@ using namespace mymysensors;
 
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "1"
-#define SKETCH_MINOR_VER "5"
+#define SKETCH_MINOR_VER "6"
 
 void setPwmFrequency(int pin, int divisor) {
   byte mode;
@@ -86,8 +86,6 @@ class Dimmer {
       return 10;
     else if (currentLevel_ < 100)
       return 5;
-    //else if (currentLevel < 200)
-    //  return 3;
     else
       return 3;
   }
@@ -331,7 +329,7 @@ public:
       return false;
     if (message.isAck())
       return true;
-    if (not message.isAck() and (message.type == V_LIGHT || message.type == V_DIMMER)) {
+    if (message.type == V_LIGHT || message.type == V_DIMMER) {
       MyDimmerSwitch * dimmer = dimmers_[message.sensor];
       if (mGetCommand(message) == C_REQ) {
         dimmer->sendCurrentLevel();
@@ -372,28 +370,87 @@ MyDimmerSwitch dimmer3(6, true, A3, 50, true);
 MyDimmerSwitch dimmer4(9, false, A1, 50, true);
 MyDimmerSwitch dimmer5(10, false, A2, 50, true);
 
-static uint8_t tempSensorId = 6;
+template <typename ValueType, ValueType (*ReadValueCb)(), int16_t (*StartMeasurementCb)()>
+class MyRequestingValue : public EventBase
+{
+  MyMessage msg_;
+  uint8_t childId_;
+  uint8_t sensorType_;
+  ValueType value_;
+  SoftTimer timer_;
+  int32_t interval_;
+  void scheduleEvent(boolean (*cb)(EventBase*), int32_t delayMs)
+  {
+    this->period = 0;
+    this->repeatCount = 1;
+    this->nextTriggerTime = millis() + delayMs;
+    this->callback = cb;
+    timer_.addEvent(this);
+  }
+  static boolean readValue_(EventBase* event)
+  {
+    MyRequestingValue* myRequestingValue = static_cast<MyRequestingValue*>(event);
+    myRequestingValue->value_ = (*ReadValueCb)();
+    #ifdef MY_MY_DEBUG
+    Serial.print("readValue: ");
+    Serial.print(myRequestingValue->value_);
+    Serial.print(" next measurement: ");
+    Serial.print(myRequestingValue->interval_);
+    #endif
+    myRequestingValue->scheduleEvent(MyRequestingValue::startMeasurement_, myRequestingValue->interval_);
+    return true;
+  }
+  static boolean startMeasurement_(EventBase* event)
+  {
+    MyRequestingValue* myRequestingValue = static_cast<MyRequestingValue*>(event);
+    int16_t conversionTime = (*StartMeasurementCb)();
+    #ifdef MY_MY_DEBUG
+    Serial.print("startMeasurement conversionTime: ");
+    Serial.println(conversionTime);
+    #endif
+    myRequestingValue->scheduleEvent(MyRequestingValue::readValue_, conversionTime);
+    return true;
+  }
+public:
+  MyRequestingValue(uint8_t sensor, uint8_t type, uint8_t sensorType, int32_t interval)
+    : msg_(sensor, type), childId_(sensor), sensorType_(sensorType), interval_(interval)
+  {}
+  void presentValue() {
+    present(childId_, sensorType_);
+  }
+  void begin() {
+    scheduleEvent(startMeasurement_, 0);
+  }
+  void update() {
+    timer_.update();
+  }
+  bool receive(const MyMessage &message) {
+    if (message.sensor != childId_)
+      return false;
+    if (message.isAck())
+      return true;
+    if (message.type == msg_.type and mGetCommand(message) == C_REQ) {
+      sendValue(msg_, value_);
+    }
+    return true;
+  }
+};
+
 OneWire oneWire(18);
 DallasTemperature tempSensor(&oneWire);
-SoftTimer tempTimer;
-MyMessage tempMsg(tempSensorId, V_TEMP);
-float temperature = 0;
 
-boolean startTempMeasurement(EventBase*);
-boolean readTempMeasurement(EventBase*)
+float readTempMeasurement()
 {
-  temperature = tempSensor.getTempCByIndex(0);
-  tempTimer.once(startTempMeasurement, 60000);
-  return false;
+  return tempSensor.getTempCByIndex(0);
 }
 
-boolean startTempMeasurement(EventBase*)
+int16_t startTempMeasurement()
 {
   tempSensor.requestTemperatures();
-  int16_t conversionTime = tempSensor.millisToWaitForConversion(tempSensor.getResolution());
-  tempTimer.once(readTempMeasurement, conversionTime);
-  return false;
+  return tempSensor.millisToWaitForConversion(tempSensor.getResolution());
 }
+
+MyRequestingValue<float, readTempMeasurement, startTempMeasurement> temperature(6, V_TEMP, S_TEMP, 60000);
 
 /***
  * Dimmable LED initialization method
@@ -406,7 +463,7 @@ void setup()
   setPwmFrequency(10, 64);
   tempSensor.begin();
   tempSensor.setWaitForConversion(false);
-  tempTimer.once(startTempMeasurement, 0);
+  temperature.begin();
 }
 
 void presentation() {
@@ -415,7 +472,7 @@ void presentation() {
 
   // Register the LED Dimmable Light with the gateway
   MyDimmerSwitch::present();
-  present(tempSensorId, S_TEMP);
+  temperature.presentValue();
 }
 
 /***
@@ -424,15 +481,15 @@ void presentation() {
 void loop()
 {
   MyDimmerSwitch::update();
-  tempTimer.update();
+  temperature.update();
 }
 
 void receive(const MyMessage &message) {
   if (message.isAck())
     return;
   bool handeled = MyDimmerSwitch::receive(message);
-  if (not handeled and message.sensor == tempSensorId and message.type == V_TEMP and mGetCommand(message) == C_REQ) {
-    sendValue(tempMsg, temperature);
+  if (not handeled) {
+    temperature.receive(message);
   }
 }
 
