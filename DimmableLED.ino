@@ -58,6 +58,57 @@ void setPwmFrequency(int pin, int divisor) {
   }
 }
 
+class MyMySensorsBase
+{
+  virtual void begin_() {}
+  virtual void update_() {}
+  virtual void firstUpdate_() {}
+  virtual void receive_(const MyMessage &) {}
+  uint8_t sensorId_;
+  uint8_t sensorType_;
+  static constexpr uint8_t MAX_SENSORS = 10;
+  static uint8_t sensorsCount_;
+  static MyMySensorsBase* sensors_[MAX_SENSORS];
+  static bool loopCalled_;
+
+public:
+  MyMySensorsBase(uint8_t sensorId, uint8_t sensorType)
+    : sensorId_(sensorId), sensorType_(sensorType)
+  {
+    if (sensorsCount_ < MAX_SENSORS)
+      sensors_[sensorsCount_++] = this;
+  }
+  static void begin() {
+    for (size_t i=0; i<sensorsCount_; i++)
+      sensors_[i]->begin_();
+  }
+  static void present() {
+    for (size_t i=0; i<sensorsCount_; i++)
+      ::present(sensors_[i]->sensorId_, sensors_[i]->sensorType_);
+  }
+  static void update() {
+    for (size_t i=0; i<sensorsCount_; i++)
+      sensors_[i]->update_();
+    if (not loopCalled_) {
+      checkTransport();
+      for (size_t i=0; i<sensorsCount_; i++)
+        sensors_[i]->firstUpdate_();
+      loopCalled_ = true;
+    }
+  }
+  static void receive(const MyMessage &message) {
+    if (message.isAck())
+      return;
+    for (size_t i=0; i<sensorsCount_; i++)
+      if (sensors_[i]->sensorId_ == message.sensor)
+        sensors_[i]->receive_(message);
+  }
+};
+
+uint8_t MyMySensorsBase::sensorsCount_ = 0;
+MyMySensorsBase * MyMySensorsBase::sensors_[];
+bool MyMySensorsBase::loopCalled_ = false;
+
 class Dimmer {
   enum State {
     OFF,
@@ -271,72 +322,38 @@ public:
   }
 };
 
-class MyDimmerSwitch {
+class MyDimmerSwitch : public MyMySensorsBase
+{
   Dimmer dim_;
   Switch sw_;
-  uint8_t childId_;
   MyMessage dimmerMsg_;
   MyMessage lightMsg_;
-  static const uint8_t MAX_DIMMERS = 10;
-  static uint8_t dimmersCount_;
-  static MyDimmerSwitch *dimmers_[MAX_DIMMERS];
-
   static uint8_t fromPercentage_(uint8_t percentage) {
     return uint8_t(round(255.0*percentage/100));
   }
   static uint8_t fromLevel_(uint8_t level) {
     return uint8_t(round(100.0*level/255));
   }
-
-public:
-  MyDimmerSwitch(uint8_t dimPin, bool inverted, uint8_t switchPin, unsigned long interval_ms, bool activeLow)
-    : dim_(dimPin, inverted),
-      sw_(switchPin, interval_ms, activeLow),
-      childId_(dimmersCount_),
-      dimmerMsg_(childId_, V_DIMMER),
-      lightMsg_(childId_, V_LIGHT) {
-    if (dimmersCount_ < MAX_DIMMERS)
-      dimmers_[dimmersCount_++] = this;
-  }
-  static void request() {
-    for (size_t i=0; i<dimmersCount_; i++)
-      ::request(dimmers_[i]->childId_, V_DIMMER);
-  }
-  static void present() {
-    for (size_t i=0; i<dimmersCount_; i++)
-      ::present(dimmers_[i]->childId_, S_DIMMER);
-  }
-  static void update() {
-    for (size_t i=0; i<dimmersCount_; i++) {
-      MyDimmerSwitch * dimmer = dimmers_[i];
-      if (dimmer->dim_.update(dimmer->sw_.update()))
-        dimmer->sendCurrentLevel();
-    }
-  }
-  void sendCurrentLevel() {
+  void sendCurrentLevel_() {
     uint8_t percentage = fromLevel_(dim_.getLevel());
     sendValue(lightMsg_, percentage > 0 ? 1 : 0);
     sendValue(dimmerMsg_, percentage);
   }
-  void requestLevel(uint8_t level) {
-    dim_.request(level);
+  void firstUpdate_() override {
+    sendCurrentLevel_();
   }
-  uint8_t getLevel() {
-    return dim_.getLevel();
+  void update_() override {
+    if (dim_.update(sw_.update()))
+      sendCurrentLevel_();
   }
-  static bool receive(const MyMessage &message) {
-    if (message.sensor > dimmersCount_-1)
-      return false;
-    if (message.isAck())
-      return true;
+  void receive_(const MyMessage &message) override {
     if (message.type == V_LIGHT || message.type == V_DIMMER) {
-      MyDimmerSwitch * dimmer = dimmers_[message.sensor];
       if (mGetCommand(message) == C_REQ) {
-        dimmer->sendCurrentLevel();
+        sendCurrentLevel_();
       }
       else if (mGetCommand(message) == C_SET) {
         //  Retrieve the power or dim level from the incoming request message
-        int requestedPercentage = atoi( message.data );
+        int requestedPercentage = atoi(message.data);
     
         // Adjust incoming level if this is a V_LIGHT variable update [0 == off, 1 == on]
         requestedPercentage *= ( message.type == V_LIGHT ? 100 : 1 );
@@ -351,27 +368,25 @@ public:
         Serial.print("] level to ");
         Serial.print(requestedPercentage);
         Serial.print( ", from " );
-        Serial.println(MyDimmerSwitch::fromLevel_(dimmer->dim_.getLevel()));
+        Serial.println(fromLevel_(dim_.getLevel()));
         #endif
   
-        dimmer->requestLevel(MyDimmerSwitch::fromPercentage_(requestedPercentage));
+        dim_.request(fromPercentage_(requestedPercentage));
       }
     }
-    return true;
   }
+public:
+  MyDimmerSwitch(uint8_t sensorId, uint8_t dimPin, bool inverted, uint8_t switchPin, unsigned long interval_ms, bool activeLow)
+    : MyMySensorsBase(sensorId, S_DIMMER), 
+      dim_(dimPin, inverted),
+      sw_(switchPin, interval_ms, activeLow),
+      dimmerMsg_(sensorId, V_DIMMER),
+      lightMsg_(sensorId, V_LIGHT)
+  {}
 };
 
-uint8_t MyDimmerSwitch::dimmersCount_ = 0;
-MyDimmerSwitch * MyDimmerSwitch::dimmers_[MAX_DIMMERS];
-
-MyDimmerSwitch dimmer1(3, true, A1, 50, true);
-MyDimmerSwitch dimmer2(5, true, A2, 50, true);
-MyDimmerSwitch dimmer3(6, true, A3, 50, true);
-MyDimmerSwitch dimmer4(9, false, A1, 50, true);
-MyDimmerSwitch dimmer5(10, false, A2, 50, true);
-
 template <typename ValueType, ValueType (*ReadValueCb)(), int16_t (*StartMeasurementCb)()>
-class MyRequestingValue : public EventBase
+class MyRequestingValue : public EventBase, public MyMySensorsBase
 {
   MyMessage msg_;
   uint8_t childId_;
@@ -395,7 +410,7 @@ class MyRequestingValue : public EventBase
     Serial.print("readValue: ");
     Serial.print(myRequestingValue->value_);
     Serial.print(" next measurement: ");
-    Serial.print(myRequestingValue->interval_);
+    Serial.println(myRequestingValue->interval_);
     #endif
     myRequestingValue->scheduleEvent(MyRequestingValue::startMeasurement_, myRequestingValue->interval_);
     return true;
@@ -411,29 +426,23 @@ class MyRequestingValue : public EventBase
     myRequestingValue->scheduleEvent(MyRequestingValue::readValue_, conversionTime);
     return true;
   }
-public:
-  MyRequestingValue(uint8_t sensor, uint8_t type, uint8_t sensorType, int32_t interval)
-    : msg_(sensor, type), childId_(sensor), sensorType_(sensorType), interval_(interval)
-  {}
-  void presentValue() {
-    present(childId_, sensorType_);
-  }
-  void begin() {
+  void begin_() {
     scheduleEvent(startMeasurement_, 0);
   }
-  void update() {
+  void update_() {
     timer_.update();
   }
-  bool receive(const MyMessage &message) {
-    if (message.sensor != childId_)
-      return false;
-    if (message.isAck())
-      return true;
-    if (message.type == msg_.type and mGetCommand(message) == C_REQ) {
+  void receive_(const MyMessage &message) {
+    if (message.type == msg_.type and mGetCommand(message) == C_REQ)
       sendValue(msg_, value_);
-    }
-    return true;
   }
+
+public:
+  MyRequestingValue(uint8_t sensorId, uint8_t type, uint8_t sensorType, int32_t interval)
+    : MyMySensorsBase(sensorId, sensorType),
+      msg_(sensorId, type),
+      interval_(interval)
+  {}
 };
 
 OneWire oneWire(18);
@@ -450,6 +459,11 @@ int16_t startTempMeasurement()
   return tempSensor.millisToWaitForConversion(tempSensor.getResolution());
 }
 
+MyDimmerSwitch dimmer1(0, 3, true, A1, 50, true);
+MyDimmerSwitch dimmer2(1, 5, true, A2, 50, true);
+MyDimmerSwitch dimmer3(2, 6, true, A3, 50, true);
+MyDimmerSwitch dimmer4(3, 9, false, A1, 50, true);
+MyDimmerSwitch dimmer5(4, 10, false, A2, 50, true);
 MyRequestingValue<float, readTempMeasurement, startTempMeasurement> temperature(6, V_TEMP, S_TEMP, 60000);
 
 /***
@@ -463,7 +477,7 @@ void setup()
   setPwmFrequency(10, 64);
   tempSensor.begin();
   tempSensor.setWaitForConversion(false);
-  temperature.begin();
+  MyMySensorsBase::begin();
 }
 
 void presentation() {
@@ -471,8 +485,7 @@ void presentation() {
   sendSketchInfo(SKETCH_NAME, SKETCH_MAJOR_VER "." SKETCH_MINOR_VER);
 
   // Register the LED Dimmable Light with the gateway
-  MyDimmerSwitch::present();
-  temperature.presentValue();
+  MyMySensorsBase::present();
 }
 
 /***
@@ -480,16 +493,10 @@ void presentation() {
  */
 void loop()
 {
-  MyDimmerSwitch::update();
-  temperature.update();
+  MyMySensorsBase::update();
 }
 
 void receive(const MyMessage &message) {
-  if (message.isAck())
-    return;
-  bool handeled = MyDimmerSwitch::receive(message);
-  if (not handeled) {
-    temperature.receive(message);
-  }
+  MyMySensorsBase::receive(message);
 }
 
