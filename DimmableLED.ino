@@ -25,7 +25,7 @@ using namespace mymysensors;
 
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "1"
-#define SKETCH_MINOR_VER "6"
+#define SKETCH_MINOR_VER "7"
 
 void setPwmFrequency(int pin, int divisor) {
   byte mode;
@@ -123,6 +123,7 @@ class Dimmer {
   State state_;
   uint8_t currentLevel_;
   uint8_t requestedLevel_;
+  uint8_t lastLevel_;
   unsigned long nextChangeTime_;
   bool inverted_;
   unsigned long lastPinRiseTime_;
@@ -176,6 +177,7 @@ class Dimmer {
       }
       if (currentLevel_ >= requestedLevel_) {
         currentLevel_ = requestedLevel_;
+        lastLevel_ = requestedLevel_;
         state_ = ON;
       }
     }
@@ -233,40 +235,18 @@ class Dimmer {
     }
   }
 
-  void startDimming_() {
-    triggerLevelChange_();
-    if (state_ == OFF or state_ == DIMMING_DOWN) {
-      requestedLevel_ = 255;
-      state_ = DIMMING_UP;
-    }
-    else if (state_ == ON or state_ == DIMMING_UP) {
-      requestedLevel_ = 0;
-      state_ = DIMMING_DOWN;
-    }
-  }
-
-  void requestDimming_(uint8_t level) {
-    triggerLevelChange_();
-    if (level < currentLevel_) {
-      state_ = DIMMING_DOWN;
-    }
-    else {
-      state_ = DIMMING_UP;
-    }
-    requestedLevel_ = level;
-  }
-
   void stopSlowDimming_() {
-      state_ = ON;
       requestedLevel_ = currentLevel_;
+      lastLevel_ = currentLevel_;
+      state_ = ON;
   }
 
 public:
   Dimmer(uint8_t pin, bool inverted)
     : pin_(pin), lastPinValue_(false),
       state_(OFF), currentLevel_(0),
-      requestedLevel_(0), nextChangeTime_(0),
-      inverted_(inverted) {
+      requestedLevel_(0), lastLevel_(0),
+      nextChangeTime_(0), inverted_(inverted) {
     setLevel_();
   }
 
@@ -287,7 +267,7 @@ public:
         return true;
       }
       else {
-        startDimming_();
+        set(state_ == OFF);
       }
     }
     lastPinValue_ = value;
@@ -298,7 +278,23 @@ public:
     if (isInSlowDimming_()) {
       return;
     }
-    requestDimming_(value);
+    triggerLevelChange_();
+    if (value < currentLevel_) {
+      state_ = DIMMING_DOWN;
+    }
+    else {
+      state_ = DIMMING_UP;
+    }
+    requestedLevel_ = value;
+  }
+
+  void set(bool on) {
+    if (on) {
+      request(lastLevel_ ? lastLevel_ : 255);
+    }
+    else {
+      request(0);
+    }
   }
 
   uint8_t getLevel() {
@@ -347,31 +343,31 @@ class MyDimmerSwitch : public MyMySensorsBase
       sendCurrentLevel_();
   }
   void receive_(const MyMessage &message) override {
-    if (message.type == V_LIGHT || message.type == V_DIMMER) {
-      if (mGetCommand(message) == C_REQ) {
-        sendCurrentLevel_();
-      }
-      else if (mGetCommand(message) == C_SET) {
-        //  Retrieve the power or dim level from the incoming request message
-        int requestedPercentage = atoi(message.data);
-    
-        // Adjust incoming level if this is a V_LIGHT variable update [0 == off, 1 == on]
-        requestedPercentage *= ( message.type == V_LIGHT ? 100 : 1 );
-    
+    if (mGetCommand(message) == C_REQ) {
+      sendCurrentLevel_();
+    }
+    else if (mGetCommand(message) == C_SET) {
+      //  Retrieve the power or dim level from the incoming request message
+      int requestedValue = atoi(message.data);
+
+      if (message.type == V_DIMMER) {    
         // Clip incoming level to valid range of 0 to 100
-        requestedPercentage = requestedPercentage > 100 ? 100 : requestedPercentage;
-        requestedPercentage = requestedPercentage < 0   ? 0   : requestedPercentage;
+        requestedValue = requestedValue > 100 ? 100 : requestedValue;
+        requestedValue = requestedValue < 0   ? 0   : requestedValue;
 
         #ifdef MY_MY_DEBUG
         Serial.print("Changing dimmer [");
         Serial.print(message.sensor);
         Serial.print("] level to ");
-        Serial.print(requestedPercentage);
+        Serial.print(requestedValue);
         Serial.print( ", from " );
         Serial.println(fromLevel_(dim_.getLevel()));
         #endif
-  
-        dim_.request(fromPercentage_(requestedPercentage));
+
+        dim_.request(fromPercentage_(requestedValue));
+      }
+      else if (message.type == V_LIGHT) {
+        dim_.set(requestedValue);
       }
     }
   }
