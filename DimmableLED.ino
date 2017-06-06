@@ -206,11 +206,15 @@ class Dimmer {
   }
 
   bool isHeldLongEnough_(bool pinValue) {
-    return pinValue == true and lastPinValue_ == true and millis() > lastPinRiseTime_ + 500;
+    return pinValue == true and lastPinValue_ == true and millis() > lastPinRiseTime_ + 2000;
   }
 
   bool isFalling(bool pinValue) {
     return pinValue == false and lastPinValue_ == true;
+  }
+
+  bool isLongPress() {
+    return millis() > lastPinRiseTime_ + 500;
   }
 
   bool isInSlowDimming_() {
@@ -267,7 +271,12 @@ public:
         return true;
       }
       else {
-        set(state_ == OFF);
+        if (isLongPress()) {
+          request(255);
+        }
+        else {
+          set(state_ == OFF);
+        }
       }
     }
     lastPinValue_ = value;
