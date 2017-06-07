@@ -118,7 +118,8 @@ class Dimmer {
     DIMMING_DOWN,
     SLOW_DIMMING_DOWN
   };
-  uint8_t pin_;
+  uint8_t wwPin_;
+  uint8_t cwPin_;
   bool lastPinValue_;
   State state_;
   uint8_t currentLevel_;
@@ -143,7 +144,10 @@ class Dimmer {
   }
 
   void setLevel_() {
-    analogWrite(pin_, inverted_ ? 255 - currentLevel_ : currentLevel_);
+    uint8_t wwLevel = currentLevel_ < 128 ? 2*currentLevel_ : 255;
+    uint8_t cwLevel = currentLevel_ > 128 ? 2*(currentLevel_ - 128) : 0;
+    analogWrite(wwPin_, inverted_ ? 255 - wwLevel : wwLevel);
+    analogWrite(cwPin_, inverted_ ? 255 - cwLevel : cwLevel);
   }
 
   bool updateLevel_() {
@@ -246,8 +250,8 @@ class Dimmer {
   }
 
 public:
-  Dimmer(uint8_t pin, bool inverted)
-    : pin_(pin), lastPinValue_(false),
+  Dimmer(uint8_t wwPin, uint8_t cwPin, bool inverted)
+    : wwPin_(wwPin), cwPin_(cwPin), lastPinValue_(false),
       state_(OFF), currentLevel_(0),
       requestedLevel_(0), lastLevel_(0),
       nextChangeTime_(0), inverted_(inverted) {
@@ -381,9 +385,9 @@ class MyDimmerSwitch : public MyMySensorsBase
     }
   }
 public:
-  MyDimmerSwitch(uint8_t sensorId, uint8_t dimPin, bool inverted, uint8_t switchPin, unsigned long interval_ms, bool activeLow)
+  MyDimmerSwitch(uint8_t sensorId, uint8_t wwDimPin, uint8_t cwDimPin, bool inverted, uint8_t switchPin, unsigned long interval_ms, bool activeLow)
     : MyMySensorsBase(sensorId, S_DIMMER), 
-      dim_(dimPin, inverted),
+      dim_(wwDimPin, cwDimPin, inverted),
       sw_(switchPin, interval_ms, activeLow),
       dimmerMsg_(sensorId, V_DIMMER),
       lightMsg_(sensorId, V_LIGHT)
@@ -464,11 +468,11 @@ int16_t startTempMeasurement()
   return tempSensor.millisToWaitForConversion(tempSensor.getResolution());
 }
 
-MyDimmerSwitch dimmer1(0, 3, true, A1, 50, true);
-MyDimmerSwitch dimmer2(1, 5, true, A2, 50, true);
-MyDimmerSwitch dimmer3(2, 6, true, A3, 50, true);
-MyDimmerSwitch dimmer4(3, 9, false, A1, 50, true);
-MyDimmerSwitch dimmer5(4, 10, false, A2, 50, true);
+MyDimmerSwitch dimmer1(0, 3, 5, true, A1, 50, true);
+//MyDimmerSwitch dimmer2(1, 5, true, A2, 50, true);
+//MyDimmerSwitch dimmer3(2, 6, true, A3, 50, true);
+MyDimmerSwitch dimmer4(3, 9, 10, false, A2, 50, true);
+//MyDimmerSwitch dimmer5(4, 10, false, A2, 50, true);
 MyRequestingValue<float, readTempMeasurement, startTempMeasurement> temperature(6, V_TEMP, S_TEMP, 60000);
 
 /***
