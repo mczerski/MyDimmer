@@ -118,8 +118,6 @@ class Dimmer {
     DIMMING_DOWN,
     SLOW_DIMMING_DOWN
   };
-  uint8_t wwPin_;
-  uint8_t cwPin_;
   bool lastPinValue_;
   State state_;
   uint8_t currentLevel_;
@@ -143,12 +141,7 @@ class Dimmer {
       return 3;
   }
 
-  void setLevel_() {
-    uint8_t wwLevel = currentLevel_ < 128 ? 2*currentLevel_ : 255;
-    uint8_t cwLevel = currentLevel_ > 128 ? 2*(currentLevel_ - 128) : 0;
-    analogWrite(wwPin_, inverted_ ? 255 - wwLevel : wwLevel);
-    analogWrite(cwPin_, inverted_ ? 255 - cwLevel : cwLevel);
-  }
+  virtual void setLevel_(uint8_t level) = 0;
 
   bool updateLevel_() {
     if (isInIdleState_())
@@ -157,7 +150,7 @@ class Dimmer {
     if (currentTime < nextChangeTime_)
       return false;
     handleDimming_();
-    setLevel_();
+    setLevel_(currentLevel_);
     int fadeDelay = fadeDelay_();
     if (isInSlowDimming_())
       fadeDelay *= 3;
@@ -249,14 +242,22 @@ class Dimmer {
       state_ = ON;
   }
 
-public:
-  Dimmer(uint8_t wwPin, uint8_t cwPin, bool inverted)
-    : wwPin_(wwPin), cwPin_(cwPin), lastPinValue_(false),
-      state_(OFF), currentLevel_(0),
-      requestedLevel_(0), lastLevel_(0),
-      nextChangeTime_(0), inverted_(inverted) {
-    setLevel_();
+protected:
+  void driveLedPin_(uint8_t pin, uint8_t level) {
+    analogWrite(pin, inverted_ ? 255 - level : level);
   }
+
+  void init_() {
+    setLevel_(currentLevel_);
+  }
+
+public:
+  Dimmer(bool inverted)
+    : lastPinValue_(false), state_(OFF), currentLevel_(0),
+      requestedLevel_(0), lastLevel_(0),
+      nextChangeTime_(0), inverted_(inverted) {}
+
+  virtual ~Dimmer() {}
 
   bool update(bool value) {
     if (isRising_(value)) {
@@ -316,6 +317,38 @@ public:
 
 };
 
+class CwWwDimmer: public Dimmer {
+  uint8_t wwPin_;
+  uint8_t cwPin_;
+
+  void setLevel_(uint8_t level) override {
+    uint8_t wwLevel = level < 128 ? 2*level : 255;
+    uint8_t cwLevel = level > 128 ? 2*(level - 128) : 0;
+    driveLedPin_(wwPin_, wwLevel);
+    driveLedPin_(cwPin_, cwLevel);
+  }
+
+public:
+  CwWwDimmer(uint8_t wwPin, uint8_t cwPin, bool inverted)
+    : Dimmer(inverted), wwPin_(wwPin), cwPin_(cwPin) {
+      init_();
+  }
+};
+
+class SimpleDimmer: public Dimmer {
+  uint8_t pin_;
+
+  void setLevel_(uint8_t level) override {
+    driveLedPin_(pin_, level);
+  }
+
+public:
+  SimpleDimmer(uint8_t pin, bool inverted)
+    : Dimmer(inverted), pin_(pin) {
+      init_();
+  }
+};
+
 class Switch {
   Bounce switch_;
   uint8_t activeLow_;
@@ -333,8 +366,8 @@ public:
 
 class MyDimmerSwitch : public MyMySensorsBase
 {
-  Dimmer dim_;
-  Switch sw_;
+  Dimmer &dim_;
+  Switch &sw_;
   MyMessage dimmerMsg_;
   MyMessage lightMsg_;
   static uint8_t fromPercentage_(uint8_t percentage) {
@@ -385,10 +418,10 @@ class MyDimmerSwitch : public MyMySensorsBase
     }
   }
 public:
-  MyDimmerSwitch(uint8_t sensorId, uint8_t wwDimPin, uint8_t cwDimPin, bool inverted, uint8_t switchPin, unsigned long interval_ms, bool activeLow)
+  MyDimmerSwitch(uint8_t sensorId, Dimmer &dim, Switch &sw)
     : MyMySensorsBase(sensorId, S_DIMMER), 
-      dim_(wwDimPin, cwDimPin, inverted),
-      sw_(switchPin, interval_ms, activeLow),
+      dim_(dim),
+      sw_(sw),
       dimmerMsg_(sensorId, V_DIMMER),
       lightMsg_(sensorId, V_LIGHT)
   {}
@@ -468,10 +501,14 @@ int16_t startTempMeasurement()
   return tempSensor.millisToWaitForConversion(tempSensor.getResolution());
 }
 
-MyDimmerSwitch dimmer1(0, 3, 5, true, A1, 50, true);
-//MyDimmerSwitch dimmer2(1, 5, true, A2, 50, true);
+SimpleDimmer dim1(3, false);
+Switch sw1(A1, 50, true);
+SimpleDimmer dim2(5, false);
+Switch sw2(A2, 50, true);
+MyDimmerSwitch dimmer1(0, dim1, sw1);
+MyDimmerSwitch dimmer2(1, dim2, sw2);
 //MyDimmerSwitch dimmer3(2, 6, true, A3, 50, true);
-MyDimmerSwitch dimmer4(3, 9, 10, false, A2, 50, true);
+//MyDimmerSwitch dimmer4(3, 9, 10, false, A2, 50, true);
 //MyDimmerSwitch dimmer5(4, 10, false, A2, 50, true);
 MyRequestingValue<float, readTempMeasurement, startTempMeasurement> temperature(6, V_TEMP, S_TEMP, 60000);
 
