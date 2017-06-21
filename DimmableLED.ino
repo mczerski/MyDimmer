@@ -20,6 +20,8 @@
 #include <SoftTimer.h>
 #include <DallasTemperature.h>
 #include <OneWire.h>
+#include <Wire.h>
+#include <APDS9930.h>
 
 using namespace mymysensors;
 
@@ -109,6 +111,11 @@ uint8_t MyMySensorsBase::sensorsCount_ = 0;
 MyMySensorsBase * MyMySensorsBase::sensors_[];
 bool MyMySensorsBase::loopCalled_ = false;
 
+struct Functions {
+  uint8_t slowDimming : 1;
+  uint8_t fullBrightness : 1;
+};
+
 class Dimmer {
   enum State {
     OFF,
@@ -126,16 +133,20 @@ class Dimmer {
   unsigned long nextChangeTime_;
   bool inverted_;
   unsigned long lastPinRiseTime_;
+  uint8_t dimmSpeed_;
+  static constexpr uint8_t maxDimmSpeed_ = 20;
+  Functions functions_;
 
   int fadeDelay_()
   {
-    if (currentLevel_ < 10)
+    auto delayFactor = maxDimmSpeed_ - dimmSpeed_ + 1;
+    if (currentLevel_ < 1*delayFactor)
       return 25;
-    else if (currentLevel_ < 20)
+    else if (currentLevel_ < 2*delayFactor)
       return 25;
-    else if (currentLevel_ < 50)
+    else if (currentLevel_ < 5*delayFactor)
       return 10;
-    else if (currentLevel_ < 100)
+    else if (currentLevel_ < 10*delayFactor)
       return 5;
     else
       return 3;
@@ -252,36 +263,39 @@ protected:
   }
 
 public:
-  Dimmer(bool inverted)
+  Dimmer(bool inverted, uint8_t dimmSpeed, Functions functions)
     : lastPinValue_(false), state_(OFF), currentLevel_(0),
       requestedLevel_(0), lastLevel_(0),
-      nextChangeTime_(0), inverted_(inverted) {}
+      nextChangeTime_(0), inverted_(inverted),
+      dimmSpeed_(min(maxDimmSpeed_, dimmSpeed)),
+      functions_(functions) {}
 
   virtual ~Dimmer() {}
 
   bool update(bool value) {
     if (isRising_(value)) {
-      lastPinRiseTime_ = millis();
+      if (not functions_.slowDimming and not functions_.fullBrightness)
+        set(state_ == OFF);
+      else
+        lastPinRiseTime_ = millis();
     }
     else if (isHeldLongEnough_(value)) {
-      if (not isInSlowDimming_()) {
+      if (not isInSlowDimming_() and functions_.slowDimming) {
         triggerLevelChange_();
         startSlowDimming_();
       }
     }
     else if (isFalling(value)) {
-      if (isInSlowDimming_()) {
+      if (isInSlowDimming_() and functions_.slowDimming) {
         stopSlowDimming_();
         lastPinValue_ = value;
         return true;
       }
-      else {
-        if (isLongPress()) {
-          request(255);
-        }
-        else {
-          set(state_ == OFF);
-        }
+      else if (isLongPress() and functions_.fullBrightness) {
+        request(255);
+      }
+      else if (functions_.slowDimming or functions_.fullBrightness) {
+        set(state_ == OFF);
       }
     }
     lastPinValue_ = value;
@@ -329,8 +343,8 @@ class CwWwDimmer: public Dimmer {
   }
 
 public:
-  CwWwDimmer(uint8_t wwPin, uint8_t cwPin, bool inverted)
-    : Dimmer(inverted), wwPin_(wwPin), cwPin_(cwPin) {
+  CwWwDimmer(uint8_t wwPin, uint8_t cwPin, bool inverted, uint8_t dimmSpeed, Functions functions)
+    : Dimmer(inverted, dimmSpeed, functions), wwPin_(wwPin), cwPin_(cwPin) {
       init_();
   }
 };
@@ -343,8 +357,8 @@ class SimpleDimmer: public Dimmer {
   }
 
 public:
-  SimpleDimmer(uint8_t pin, bool inverted)
-    : Dimmer(inverted), pin_(pin) {
+  SimpleDimmer(uint8_t pin, bool inverted, uint8_t dimmSpeed, Functions functions)
+    : Dimmer(inverted, dimmSpeed, functions), pin_(pin) {
       init_();
   }
 };
@@ -501,9 +515,65 @@ int16_t startTempMeasurement()
   return tempSensor.millisToWaitForConversion(tempSensor.getResolution());
 }
 
-SimpleDimmer dim1(3, false);
-Switch sw1(A1, 50, true);
-SimpleDimmer dim2(5, false);
+#define APDS9930_INT    A3
+
+// Constants
+#define PROX_INT_HIGH   600 // Proximity level for interrupt
+#define PROX_INT_LOW    0  // No far interrupt
+
+// Global variables
+APDS9930 apds = APDS9930();
+
+void APDS9930_init() {
+  pinMode(APDS9930_INT, INPUT);
+  if (apds.init()) {
+    Serial.println(F("APDS-9930 initialization complete"));
+  } else {
+    Serial.println(F("Something went wrong during APDS-9930 init!"));
+  }
+  if (apds.enableProximitySensor(true)) {
+    Serial.println(F("Proximity sensor is now running"));
+  } else {
+    Serial.println(F("Something went wrong during sensor init!"));
+  }
+  if (!apds.setProximityGain(PGAIN_1X)) {
+    Serial.println(F("Something went wrong trying to set PGAIN"));
+  }
+  if (!apds.setProximityIntLowThreshold(PROX_INT_LOW)) {
+    Serial.println(F("Error writing low threshold"));
+  }
+  if (!apds.setProximityIntHighThreshold(PROX_INT_HIGH)) {
+    Serial.println(F("Error writing high threshold"));
+  }
+}
+
+void APDS9930_update() {
+  uint8_t apdsInt = digitalRead(APDS9930_INT);
+  if (apdsInt == LOW) {
+    uint16_t proximity_data = 0;
+    if (!apds.readProximity(proximity_data)) {
+      #ifdef MY_MY_DEBUG
+      Serial.println("Error reading proximity value");
+      #endif
+    } else {
+      #ifdef MY_MY_DEBUG
+      Serial.print("Proximity detected! Level: ");
+      Serial.println(proximity_data);
+      #endif
+    }
+    if (proximity_data < PROX_INT_HIGH) {
+      if (!apds.clearProximityInt()) {
+        #ifdef MY_MY_DEBUG
+        Serial.println("Error clearing interrupt");
+        #endif
+      }
+    }
+  }
+}
+
+SimpleDimmer dim1(3, false, 20, {0, 0});
+Switch sw1(APDS9930_INT, 200, true);
+SimpleDimmer dim2(5, false, 10, {1, 1});
 Switch sw2(A2, 50, true);
 MyDimmerSwitch dimmer1(0, dim1, sw1);
 MyDimmerSwitch dimmer2(1, dim2, sw2);
@@ -524,6 +594,7 @@ void setup()
   tempSensor.begin();
   tempSensor.setWaitForConversion(false);
   MyMySensorsBase::begin();
+  APDS9930_init();
 }
 
 void presentation() {
@@ -540,6 +611,7 @@ void presentation() {
 void loop()
 {
   MyMySensorsBase::update();
+  APDS9930_update();
 }
 
 void receive(const MyMessage &message) {
