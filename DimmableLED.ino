@@ -1,6 +1,6 @@
 // Enable debug prints to serial monitor
 //#define MY_DEBUG
-//#define MY_MY_DEBUG
+#define MY_MY_DEBUG
 
 // Enable and select radio type attached
 #define MY_RADIO_NRF24
@@ -13,7 +13,7 @@
 #define MY_OTA_FIRMWARE_FEATURE
 #define MY_TRANSPORT_WAIT_READY_MS 1
 
-#define MY_NODE_ID 6
+#define MY_NODE_ID 10
 
 #include "MyMySensors/MyMySensors.h"
 #include <Bounce2.h>
@@ -27,7 +27,7 @@ using namespace mymysensors;
 
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "1"
-#define SKETCH_MINOR_VER "7"
+#define SKETCH_MINOR_VER "8"
 
 void setPwmFrequency(int pin, int divisor) {
   byte mode;
@@ -515,10 +515,11 @@ int16_t startTempMeasurement()
   return tempSensor.millisToWaitForConversion(tempSensor.getResolution());
 }
 
+//#define APDS9930
 #define APDS9930_INT    A3
 
 // Constants
-#define PROX_INT_HIGH   600 // Proximity level for interrupt
+#define PROX_INT_HIGH   900 // Proximity level for interrupt
 #define PROX_INT_LOW    0  // No far interrupt
 
 // Global variables
@@ -571,15 +572,20 @@ void APDS9930_update() {
   }
 }
 
-SimpleDimmer dim1(3, false, 20, {0, 0});
-Switch sw1(APDS9930_INT, 200, true);
-SimpleDimmer dim2(5, false, 10, {1, 1});
+//SimpleDimmer dim1(3, false, 20, {0, 0});
+//Switch sw1(APDS9930_INT, 200, true);
+
+Switch sw1(A1, 200, true);
 Switch sw2(A2, 50, true);
+Switch sw3(A3, 50, true);
+CwWwDimmer dim1(3, 5, true, 10, {1, 1});
+CwWwDimmer dim2(6, 9, true, 10, {1, 1});
+SimpleDimmer dim3(10, false, 10, {1, 1});
+
 MyDimmerSwitch dimmer1(0, dim1, sw1);
 MyDimmerSwitch dimmer2(1, dim2, sw2);
-//MyDimmerSwitch dimmer3(2, 6, true, A3, 50, true);
-//MyDimmerSwitch dimmer4(3, 9, 10, false, A2, 50, true);
-//MyDimmerSwitch dimmer5(4, 10, false, A2, 50, true);
+MyDimmerSwitch dimmer3(2, dim3, sw3);
+
 MyRequestingValue<float, readTempMeasurement, startTempMeasurement> temperature(6, V_TEMP, S_TEMP, 60000);
 
 /***
@@ -594,7 +600,9 @@ void setup()
   tempSensor.begin();
   tempSensor.setWaitForConversion(false);
   MyMySensorsBase::begin();
+  #ifdef APDS9930
   APDS9930_init();
+  #endif
 }
 
 void presentation() {
@@ -611,7 +619,9 @@ void presentation() {
 void loop()
 {
   MyMySensorsBase::update();
+  #ifdef APDS9930
   APDS9930_update();
+  #endif
 }
 
 void receive(const MyMessage &message) {
