@@ -1,6 +1,6 @@
 // Enable debug prints to serial monitor
 //#define MY_DEBUG
-#define MY_MY_DEBUG
+//#define MY_MY_DEBUG
 
 // Enable and select radio type attached
 #define MY_RADIO_NRF24
@@ -13,7 +13,8 @@
 #define MY_OTA_FIRMWARE_FEATURE
 #define MY_TRANSPORT_WAIT_READY_MS 1
 
-#define MY_NODE_ID 10
+#define MY_NODE_ID 8
+#define KITCHEN
 
 #include "MyMySensors/MyMySensors.h"
 #include <Bounce2.h>
@@ -27,7 +28,7 @@ using namespace mymysensors;
 
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "1"
-#define SKETCH_MINOR_VER "8"
+#define SKETCH_MINOR_VER "9"
 
 void setPwmFrequency(int pin, int divisor) {
   byte mode;
@@ -364,17 +365,37 @@ public:
 };
 
 class Switch {
+public:
+  virtual bool update() = 0;
+};
+
+class BounceSwitch : public Switch {
   Bounce switch_;
   uint8_t activeLow_;
 public:
-  Switch(uint8_t pin, unsigned long interval_ms, bool activeLow = false) : switch_(pin, interval_ms), activeLow_(activeLow) {
+  BounceSwitch(uint8_t pin, unsigned long interval_ms, bool activeLow = false) : switch_(pin, interval_ms), activeLow_(activeLow) {
     pinMode(pin, INPUT);
     digitalWrite(pin, activeLow_ ? HIGH : LOW);
     switch_.update();
   }
-  bool update() {
+  bool update() override {
     switch_.update();
     return activeLow_ ? !switch_.read() : switch_.read();
+  }
+};
+
+class AnalogBounceSwitch : public Switch {
+  uint8_t pin_;
+  uint8_t activeLow_;
+  static bool getState_(uint8_t pin) {
+    return analogRead(pin) > 512;
+  }
+public:
+  AnalogBounceSwitch(uint8_t pin, unsigned long interval_ms, bool activeLow = false) : pin_(pin), activeLow_(activeLow) {
+  }
+  bool update() override {
+    bool state = getState_(pin_);
+    return activeLow_ ? !state : state;
   }
 };
 
@@ -501,7 +522,7 @@ public:
   {}
 };
 
-OneWire oneWire(18);
+OneWire oneWire(A1);
 DallasTemperature tempSensor(&oneWire);
 
 float readTempMeasurement()
@@ -515,7 +536,6 @@ int16_t startTempMeasurement()
   return tempSensor.millisToWaitForConversion(tempSensor.getResolution());
 }
 
-//#define APDS9930
 #define APDS9930_INT    A3
 
 // Constants
@@ -572,19 +592,43 @@ void APDS9930_update() {
   }
 }
 
-//SimpleDimmer dim1(3, false, 20, {0, 0});
-//Switch sw1(APDS9930_INT, 200, true);
-
-Switch sw1(A1, 200, true);
-Switch sw2(A2, 50, true);
-Switch sw3(A3, 50, true);
+#ifdef KITCHEN
+#define USE_APDS9930
+#define DIMMER1
+#define DIMMER2
+#define DIMMER3
+AnalogBounceSwitch sw1(A6, 50, true);
+BounceSwitch sw2(A2, 50, true);
+BounceSwitch sw3(APDS9930_INT, 50, true);
 CwWwDimmer dim1(3, 5, true, 10, {1, 1});
-CwWwDimmer dim2(6, 9, true, 10, {1, 1});
-SimpleDimmer dim3(10, false, 10, {1, 1});
+SimpleDimmer dim2(6, true, 10, {1, 1});
+SimpleDimmer dim3(10, true, 10, {0, 0});
+#endif
 
+#ifdef LIVINGROOM
+#define DIMMER1
+#define DIMMER2
+BounceSwitch sw1(A1, 50, true);
+BounceSwitch sw2(A2, 50, true);
+CwWwDimmer dim1(3, 5, true, 10, {1, 1});
+SimpleDimmer dim2(6, false, 10, {1, 1});
+#endif
+
+#ifdef BATHROOM
+#define DIMMER1
+BounceSwitch sw1(A3, 50, true);
+SimpleDimmer dim1(10, false, 10, {1, 1});
+#endif
+
+#ifdef DIMMER1
 MyDimmerSwitch dimmer1(0, dim1, sw1);
+#endif
+#ifdef DIMMER2
 MyDimmerSwitch dimmer2(1, dim2, sw2);
+#endif
+#ifdef DIMMER3
 MyDimmerSwitch dimmer3(2, dim3, sw3);
+#endif
 
 MyRequestingValue<float, readTempMeasurement, startTempMeasurement> temperature(6, V_TEMP, S_TEMP, 60000);
 
@@ -600,7 +644,7 @@ void setup()
   tempSensor.begin();
   tempSensor.setWaitForConversion(false);
   MyMySensorsBase::begin();
-  #ifdef APDS9930
+  #ifdef USE_APDS9930
   APDS9930_init();
   #endif
 }
@@ -619,7 +663,7 @@ void presentation() {
 void loop()
 {
   MyMySensorsBase::update();
-  #ifdef APDS9930
+  #ifdef USE_APDS9930
   APDS9930_update();
   #endif
 }
