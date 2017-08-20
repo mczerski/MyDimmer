@@ -13,8 +13,28 @@
 #define MY_OTA_FIRMWARE_FEATURE
 #define MY_TRANSPORT_WAIT_READY_MS 1
 
+#define LIVINGROOM
+
+#ifdef KITCHEN
 #define MY_NODE_ID 8
-#define KITCHEN
+#define TEMP_PIN A4
+#endif
+
+#ifdef LIVINGROOM
+#define MY_NODE_ID 6
+#define USE_APDS9930
+#define TEMP_PIN A1
+#endif
+
+#ifdef BATHROOM1
+#define MY_NODE_ID 10
+#define TEMP_PIN A4
+#endif
+
+#ifdef BATHROOM2
+#define MY_NODE_ID 9
+#define TEMP_PIN A4
+#endif
 
 #include "MyMySensors/MyMySensors.h"
 #include <Bounce2.h>
@@ -23,12 +43,13 @@
 #include <OneWire.h>
 #include <Wire.h>
 #include <APDS9930.h>
+#include <AnalogMultiButton.h>
 
 using namespace mymysensors;
 
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "1"
-#define SKETCH_MINOR_VER "9"
+#define SKETCH_MINOR_VER "10"
 
 void setPwmFrequency(int pin, int divisor) {
   byte mode;
@@ -365,37 +386,40 @@ public:
 };
 
 class Switch {
+  uint8_t activeLow_;
+  virtual bool doUpdate_() = 0;
 public:
-  virtual bool update() = 0;
+  Switch(bool activeLow = false) : activeLow_(activeLow) {}
+  bool update() {
+    bool state = doUpdate_();
+    return activeLow_ ? !state : state;
+  }
 };
 
 class BounceSwitch : public Switch {
   Bounce switch_;
-  uint8_t activeLow_;
-public:
-  BounceSwitch(uint8_t pin, unsigned long interval_ms, bool activeLow = false) : switch_(pin, interval_ms), activeLow_(activeLow) {
-    pinMode(pin, INPUT);
-    digitalWrite(pin, activeLow_ ? HIGH : LOW);
+  bool doUpdate_() override {
     switch_.update();
+    return switch_.read();
   }
-  bool update() override {
+public:
+  BounceSwitch(uint8_t pin, unsigned long interval_ms, bool activeLow = false) : Switch(activeLow), switch_(pin, interval_ms) {
+    pinMode(pin, INPUT);
+    digitalWrite(pin, activeLow ? HIGH : LOW);
     switch_.update();
-    return activeLow_ ? !switch_.read() : switch_.read();
   }
 };
 
 class AnalogBounceSwitch : public Switch {
-  uint8_t pin_;
-  uint8_t activeLow_;
-  static bool getState_(uint8_t pin) {
-    return analogRead(pin) > 512;
+  AnalogMultiButton button_;
+  const int buttonValues_[1] = {0};
+  bool doUpdate_() override {
+    button_.update();
+    return !button_.isPressed(0);
   }
 public:
-  AnalogBounceSwitch(uint8_t pin, unsigned long interval_ms, bool activeLow = false) : pin_(pin), activeLow_(activeLow) {
-  }
-  bool update() override {
-    bool state = getState_(pin_);
-    return activeLow_ ? !state : state;
+  AnalogBounceSwitch(uint8_t pin, unsigned long interval_ms, bool activeLow = false) : Switch(activeLow), button_(pin, 1, buttonValues_, interval_ms) {
+    button_.update();
   }
 };
 
@@ -415,6 +439,12 @@ class MyDimmerSwitch : public MyMySensorsBase
     uint8_t percentage = fromLevel_(dim_.getLevel());
     sendValue(lightMsg_, percentage > 0 ? 1 : 0);
     sendValue(dimmerMsg_, percentage);
+    #ifdef MY_MY_DEBUG
+    Serial.print("sendCurrentLevel ");
+    Serial.print(percentage);
+    Serial.print(" for child id ");
+    Serial.println(lightMsg_.sensor);
+    #endif
   }
   void firstUpdate_() override {
     sendCurrentLevel_();
@@ -522,7 +552,7 @@ public:
   {}
 };
 
-OneWire oneWire(A1);
+OneWire oneWire(TEMP_PIN);
 DallasTemperature tempSensor(&oneWire);
 
 float readTempMeasurement()
@@ -593,28 +623,34 @@ void APDS9930_update() {
 }
 
 #ifdef KITCHEN
-#define USE_APDS9930
 #define DIMMER1
 #define DIMMER2
-#define DIMMER3
-AnalogBounceSwitch sw1(A6, 50, true);
+BounceSwitch sw1(A1, 50, true);
 BounceSwitch sw2(A2, 50, true);
-BounceSwitch sw3(APDS9930_INT, 50, true);
+BounceSwitch sw3(A3, 50, true);
 CwWwDimmer dim1(3, 5, true, 10, {1, 1});
 SimpleDimmer dim2(6, true, 10, {1, 1});
-SimpleDimmer dim3(10, true, 10, {0, 0});
 #endif
 
 #ifdef LIVINGROOM
 #define DIMMER1
 #define DIMMER2
-BounceSwitch sw1(A1, 50, true);
+#define DIMMER3
+AnalogBounceSwitch sw1(A7, 50, true);
 BounceSwitch sw2(A2, 50, true);
+BounceSwitch sw3(APDS9930_INT, 50, true);
 CwWwDimmer dim1(3, 5, true, 10, {1, 1});
 SimpleDimmer dim2(6, false, 10, {1, 1});
+SimpleDimmer dim3(10, true, 10, {0, 0});
 #endif
 
-#ifdef BATHROOM
+#ifdef BATHROOM1
+#define DIMMER1
+BounceSwitch sw1(A3, 50, true);
+SimpleDimmer dim1(10, false, 10, {1, 1});
+#endif
+
+#ifdef BATHROOM2
 #define DIMMER1
 BounceSwitch sw1(A3, 50, true);
 SimpleDimmer dim1(10, false, 10, {1, 1});
