@@ -13,7 +13,7 @@
 #define MY_OTA_FIRMWARE_FEATURE
 #define MY_TRANSPORT_WAIT_READY_MS 1
 
-#define LIVINGROOM
+#define KITCHEN
 
 #ifdef KITCHEN
 #define MY_NODE_ID 8
@@ -477,7 +477,7 @@ class MyDimmerSwitch : public MyMySensorsBase
 
         dim_.request(fromPercentage_(requestedValue));
       }
-      else if (message.type == V_LIGHT) {
+      else if (message.type == V_STATUS) {
         dim_.set(requestedValue);
       }
     }
@@ -488,7 +488,67 @@ public:
       dim_(dim),
       sw_(sw),
       dimmerMsg_(sensorId, V_DIMMER),
-      lightMsg_(sensorId, V_LIGHT)
+      lightMsg_(sensorId, V_STATUS)
+  {}
+};
+
+class MyRelaySwitch : public MyMySensorsBase
+{
+  bool state_;
+  bool prevSwState_;
+  int relayPin_;
+  Switch &sw_;
+  MyMessage lightMsg_;
+  void sendCurrentState_() {
+    sendValue(lightMsg_, state_);
+    #ifdef MY_MY_DEBUG
+    Serial.print("sendCurrentState ");
+    Serial.print(state_);
+    Serial.print(" for child id ");
+    Serial.println(lightMsg_.sensor);
+    #endif
+  }
+  void firstUpdate_() override {
+    sendCurrentState_();
+  }
+  void update_() override {
+    bool currSwState = sw_.update();
+    if (prevSwState_ != currSwState && currSwState == true) {
+        state_ = !state_;
+        sendCurrentState_();
+    }
+    prevSwState_ = currSwState;
+    digitalWrite(relayPin_, !state_);
+  }
+  void receive_(const MyMessage &message) override {
+    if (mGetCommand(message) == C_REQ) {
+      sendCurrentState_();
+    }
+    else if (mGetCommand(message) == C_SET) {
+      if (message.type == V_STATUS) {    
+        bool requestedState = message.getBool();
+
+        #ifdef MY_MY_DEBUG
+        Serial.print("Changing relay [");
+        Serial.print(message.sensor);
+        Serial.print("] state to ");
+        Serial.print(requestedState);
+        Serial.print( ", from " );
+        Serial.println(state_);
+        #endif
+
+        state_ = requestedState;
+      }
+    }
+  }
+public:
+  MyRelaySwitch(uint8_t sensorId, Switch &sw, int relayPin)
+    : MyMySensorsBase(sensorId, S_BINARY),
+      state_(false),
+      prevSwState_(false),
+      relayPin_(relayPin),
+      sw_(sw),
+      lightMsg_(sensorId, V_STATUS)
   {}
 };
 
@@ -629,7 +689,8 @@ BounceSwitch sw1(A1, 50, true);
 BounceSwitch sw2(A2, 50, true);
 BounceSwitch sw3(A3, 50, true);
 CwWwDimmer dim1(3, 5, true, 10, {1, 1});
-SimpleDimmer dim2(6, true, 10, {1, 1});
+SimpleDimmer dim2(6, false, 10, {1, 1});
+MyRelaySwitch relay3(2, sw3, 10);
 #endif
 
 #ifdef LIVINGROOM
