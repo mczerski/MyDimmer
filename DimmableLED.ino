@@ -1,6 +1,6 @@
 // Enable debug prints to serial monitor
 //#define MY_DEBUG
-//#define MY_MY_DEBUG
+#define MY_MY_DEBUG
 
 // Enable and select radio type attached
 #define MY_RADIO_NRF24
@@ -13,7 +13,7 @@
 #define MY_OTA_FIRMWARE_FEATURE
 #define MY_TRANSPORT_WAIT_READY_MS 1
 
-#define KITCHEN
+#define BEDROOM
 
 #ifdef KITCHEN
 #define MY_NODE_ID 8
@@ -35,6 +35,13 @@
 #define MY_NODE_ID 9
 #define TEMP_PIN A4
 #endif
+
+#ifdef BEDROOM
+#define MY_NODE_ID 11
+#define USE_APDS9930
+#define TEMP_PIN A1
+#endif
+
 
 #include "MyMySensors/MyMySensors.h"
 #include <Bounce2.h>
@@ -637,25 +644,40 @@ APDS9930 apds = APDS9930();
 
 void APDS9930_init() {
   pinMode(APDS9930_INT, INPUT);
-  if (apds.init()) {
+  bool status = apds.init();
+  #ifdef MY_MY_DEBUG
+  if (status) {
     Serial.println(F("APDS-9930 initialization complete"));
   } else {
     Serial.println(F("Something went wrong during APDS-9930 init!"));
   }
-  if (apds.enableProximitySensor(true)) {
+  #endif
+  status = apds.enableProximitySensor(true);
+  #ifdef MY_MY_DEBUG
+  if (status) {
     Serial.println(F("Proximity sensor is now running"));
   } else {
     Serial.println(F("Something went wrong during sensor init!"));
   }
-  if (!apds.setProximityGain(PGAIN_1X)) {
+  #endif
+  status = apds.setProximityGain(PGAIN_1X);
+  #ifdef MY_MY_DEBUG
+  if (!status) {
     Serial.println(F("Something went wrong trying to set PGAIN"));
   }
-  if (!apds.setProximityIntLowThreshold(PROX_INT_LOW)) {
+  #endif
+  status = apds.setProximityIntLowThreshold(PROX_INT_LOW);
+  #ifdef MY_MY_DEBUG
+  if (!status) {
     Serial.println(F("Error writing low threshold"));
   }
-  if (!apds.setProximityIntHighThreshold(PROX_INT_HIGH)) {
+  #endif
+  status = apds.setProximityIntHighThreshold(PROX_INT_HIGH);
+  #ifdef MY_MY_DEBUG
+  if (!status) {
     Serial.println(F("Error writing high threshold"));
   }
+  #endif
 }
 
 void APDS9930_update() {
@@ -715,6 +737,12 @@ SimpleDimmer dim1(10, false, 10, {1, 1});
 #define DIMMER1
 BounceSwitch sw1(A3, 50, true);
 SimpleDimmer dim1(10, false, 10, {1, 1});
+#endif
+
+#ifdef BEDROOM
+#define DIMMER1
+BounceSwitch sw1(APDS9930_INT, 50, true);
+SimpleDimmer dim1(3, true, 10, {0, 0});
 #endif
 
 #ifdef DIMMER1
