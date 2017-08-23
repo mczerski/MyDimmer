@@ -13,7 +13,7 @@
 #define MY_OTA_FIRMWARE_FEATURE
 #define MY_TRANSPORT_WAIT_READY_MS 1
 
-#define BEDROOM
+#define BATHROOM1
 
 #ifdef KITCHEN
 #define MY_NODE_ID 8
@@ -56,7 +56,7 @@ using namespace mymysensors;
 
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "1"
-#define SKETCH_MINOR_VER "10"
+#define SKETCH_MINOR_VER "11"
 
 void setPwmFrequency(int pin, int divisor) {
   byte mode;
@@ -332,7 +332,7 @@ public:
   }
 
   void request(uint8_t value) {
-    if (isInSlowDimming_()) {
+    if (isInSlowDimming_() or value == currentLevel_) {
       return;
     }
     triggerLevelChange_();
