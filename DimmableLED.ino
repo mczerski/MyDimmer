@@ -1,6 +1,6 @@
 // Enable debug prints to serial monitor
 //#define MY_DEBUG
-#define MY_MY_DEBUG
+//#define MY_MY_DEBUG
 
 // Enable and select radio type attached
 #define MY_RADIO_NRF24
@@ -13,7 +13,7 @@
 #define MY_OTA_FIRMWARE_FEATURE
 #define MY_TRANSPORT_WAIT_READY_MS 1
 
-#define BATHROOM1
+#define LIVINGROOM
 
 #ifdef KITCHEN
 #define MY_NODE_ID 8
@@ -56,7 +56,7 @@ using namespace mymysensors;
 
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "1"
-#define SKETCH_MINOR_VER "11"
+#define SKETCH_MINOR_VER "12"
 
 void setPwmFrequency(int pin, int divisor) {
   byte mode;
@@ -520,8 +520,8 @@ class MyRelaySwitch : public MyMySensorsBase
   }
   void update_() override {
     bool currSwState = sw_.update();
-    if (prevSwState_ != currSwState && currSwState == true) {
-        state_ = !state_;
+    if (prevSwState_ != currSwState && state_ != currSwState) {
+        state_ = currSwState;
         sendCurrentState_();
     }
     prevSwState_ = currSwState;
@@ -556,7 +556,9 @@ public:
       relayPin_(relayPin),
       sw_(sw),
       lightMsg_(sensorId, V_STATUS)
-  {}
+  {
+    pinMode(relayPin_, OUTPUT);
+  }
 };
 
 template <typename ValueType, ValueType (*ReadValueCb)(), int16_t (*StartMeasurementCb)()>
@@ -643,7 +645,7 @@ int16_t startTempMeasurement()
 APDS9930 apds = APDS9930();
 
 void APDS9930_init() {
-  pinMode(APDS9930_INT, INPUT);
+  pinMode(APDS9930_INT, INPUT_PULLUP);
   bool status = apds.init();
   #ifdef MY_MY_DEBUG
   if (status) {
