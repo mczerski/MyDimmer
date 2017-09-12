@@ -23,6 +23,8 @@
 #ifdef LIVINGROOM
 #define MY_NODE_ID 6
 #define USE_APDS9930
+#define APDS9930_INT A3
+#define APDS9930_NUM 1
 #define TEMP_PIN A1
 #endif
 
@@ -39,9 +41,10 @@
 #ifdef BEDROOM
 #define MY_NODE_ID 11
 #define USE_APDS9930
+#define APDS9930_INT A3
+#define APDS9930_NUM 2
 #define TEMP_PIN A1
 #endif
-
 
 #include "MyMySensors/MyMySensors.h"
 #include <Bounce2.h>
@@ -56,7 +59,7 @@ using namespace mymysensors;
 
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "1"
-#define SKETCH_MINOR_VER "12"
+#define SKETCH_MINOR_VER "13"
 
 void setPwmFrequency(int pin, int divisor) {
   byte mode;
@@ -430,6 +433,129 @@ public:
   }
 };
 
+class MyAPDS9930 {
+  uint8_t intPin_;
+  APDS9930 apds_[APDS9930_NUM];
+  uint8_t apdsInts_;
+  static const int PCAADDR = 0x70;
+  static const int PROX_INT_HIGH = 900; // Proximity level for interrupt
+  static const int PROX_INT_LOW = 0;  // No far interrupt
+
+  void pcaSelect_(uint8_t i) {
+    #if APDS9930_NUM == 1
+    return;
+    #else
+    if (i > 3) return;
+    Wire.beginTransmission(PCAADDR);
+    Wire.write(4 + i);
+    Wire.endTransmission();
+    #endif
+  }
+  uint8_t pcaGet_() {
+    #if APDS9930_NUM == 1
+    return digitalRead(intPin_) == LOW ? 1 : 0;
+    #else
+    Wire.requestFrom(PCAADDR, 1);
+    return Wire.read() >> 4;
+    #endif
+  }
+  void init_(uint8_t i) {
+    pcaSelect_(i);
+    bool status = apds_[i].init();
+    #ifdef MY_MY_DEBUG
+    Serial.print(F("APDS-9930 initializing sensor #"));
+    Serial.println(i);
+    if (status) {
+      Serial.println(F("APDS-9930 initialization complete"));
+    } else {
+      Serial.println(F("Something went wrong during APDS-9930 init!"));
+    }
+    #endif
+    status = apds_[i].enableProximitySensor(true);
+    #ifdef MY_MY_DEBUG
+    if (status) {
+      Serial.println(F("Proximity sensor is now running"));
+    } else {
+      Serial.println(F("Something went wrong during sensor init!"));
+    }
+    #endif
+    status = apds_[i].setProximityGain(PGAIN_1X);
+    #ifdef MY_MY_DEBUG
+    if (!status) {
+      Serial.println(F("Something went wrong trying to set PGAIN"));
+    }
+    #endif
+    status = apds_[i].setProximityIntLowThreshold(PROX_INT_LOW);
+    #ifdef MY_MY_DEBUG
+    if (!status) {
+      Serial.println(F("Error writing low threshold"));
+    }
+    #endif
+    status = apds_[i].setProximityIntHighThreshold(PROX_INT_HIGH);
+    #ifdef MY_MY_DEBUG
+    if (!status) {
+      Serial.println(F("Error writing high threshold"));
+    }
+    #endif
+  }
+  void update_(uint8_t i) {
+    pcaSelect_(i);
+    uint16_t proximity_data = 0;
+    #ifdef MY_MY_DEBUG
+    Serial.print("Reading sensor #");
+    Serial.println(i);
+    #endif
+    if (!apds_[i].readProximity(proximity_data)) {
+      #ifdef MY_MY_DEBUG
+      Serial.println("Error reading proximity value");
+      #endif
+    } else {
+      #ifdef MY_MY_DEBUG
+      Serial.print("Proximity detected! Level: ");
+      Serial.println(proximity_data);
+      #endif
+    }
+    if (proximity_data < PROX_INT_HIGH) {
+      if (!apds_[i].clearProximityInt()) {
+        #ifdef MY_MY_DEBUG
+        Serial.println("Error clearing interrupt");
+        #endif
+      }
+    }
+  }
+
+public:
+  MyAPDS9930(uint8_t intPin) : intPin_(intPin), apdsInts_(0) {}
+  void init() {
+    pinMode(intPin_, INPUT_PULLUP);
+    for (uint8_t i=0; i<APDS9930_NUM; i++)
+      init_(i);
+  }
+  void update() {
+    apdsInts_ = pcaGet_();
+    if (apdsInts_) {
+      for (uint8_t i=0; i<APDS9930_NUM; i++) {
+        if (apdsInts_ & (1 << i)) {
+          update_(i);
+        }
+      }
+    }
+  }
+  bool getInt(uint8_t i) const {
+    return apdsInts_ & (1 << i);
+  }
+};
+
+class APDS9930Switch : public Switch {
+  const MyAPDS9930 &myApds_;
+  uint8_t apdsNo_;
+  bool doUpdate_() override {
+    return myApds_.getInt(apdsNo_);
+  }
+public:
+  APDS9930Switch(const MyAPDS9930 &myApds, uint8_t apdsNo) : Switch(false), myApds_(myApds), apdsNo_(apdsNo) {}
+};
+
 class MyDimmerSwitch : public MyMySensorsBase
 {
   Dimmer &dim_;
@@ -635,76 +761,9 @@ int16_t startTempMeasurement()
   return tempSensor.millisToWaitForConversion(tempSensor.getResolution());
 }
 
-#define APDS9930_INT    A3
-
-// Constants
-#define PROX_INT_HIGH   900 // Proximity level for interrupt
-#define PROX_INT_LOW    0  // No far interrupt
-
-// Global variables
-APDS9930 apds = APDS9930();
-
-void APDS9930_init() {
-  pinMode(APDS9930_INT, INPUT_PULLUP);
-  bool status = apds.init();
-  #ifdef MY_MY_DEBUG
-  if (status) {
-    Serial.println(F("APDS-9930 initialization complete"));
-  } else {
-    Serial.println(F("Something went wrong during APDS-9930 init!"));
-  }
-  #endif
-  status = apds.enableProximitySensor(true);
-  #ifdef MY_MY_DEBUG
-  if (status) {
-    Serial.println(F("Proximity sensor is now running"));
-  } else {
-    Serial.println(F("Something went wrong during sensor init!"));
-  }
-  #endif
-  status = apds.setProximityGain(PGAIN_1X);
-  #ifdef MY_MY_DEBUG
-  if (!status) {
-    Serial.println(F("Something went wrong trying to set PGAIN"));
-  }
-  #endif
-  status = apds.setProximityIntLowThreshold(PROX_INT_LOW);
-  #ifdef MY_MY_DEBUG
-  if (!status) {
-    Serial.println(F("Error writing low threshold"));
-  }
-  #endif
-  status = apds.setProximityIntHighThreshold(PROX_INT_HIGH);
-  #ifdef MY_MY_DEBUG
-  if (!status) {
-    Serial.println(F("Error writing high threshold"));
-  }
-  #endif
-}
-
-void APDS9930_update() {
-  uint8_t apdsInt = digitalRead(APDS9930_INT);
-  if (apdsInt == LOW) {
-    uint16_t proximity_data = 0;
-    if (!apds.readProximity(proximity_data)) {
-      #ifdef MY_MY_DEBUG
-      Serial.println("Error reading proximity value");
-      #endif
-    } else {
-      #ifdef MY_MY_DEBUG
-      Serial.print("Proximity detected! Level: ");
-      Serial.println(proximity_data);
-      #endif
-    }
-    if (proximity_data < PROX_INT_HIGH) {
-      if (!apds.clearProximityInt()) {
-        #ifdef MY_MY_DEBUG
-        Serial.println("Error clearing interrupt");
-        #endif
-      }
-    }
-  }
-}
+#ifdef USE_APDS9930
+MyAPDS9930 myApds(APDS9930_INT);
+#endif
 
 #ifdef KITCHEN
 #define DIMMER1
@@ -743,8 +802,11 @@ SimpleDimmer dim1(10, false, 10, {1, 1});
 
 #ifdef BEDROOM
 #define DIMMER1
-BounceSwitch sw1(APDS9930_INT, 50, true);
+#define DIMMER2
+APDS9930Switch sw1(myApds, 0);
+APDS9930Switch sw2(myApds, 1);
 SimpleDimmer dim1(3, true, 10, {0, 0});
+SimpleDimmer dim2(5, true, 10, {0, 0});
 #endif
 
 #ifdef DIMMER1
@@ -772,7 +834,7 @@ void setup()
   tempSensor.setWaitForConversion(false);
   MyMySensorsBase::begin();
   #ifdef USE_APDS9930
-  APDS9930_init();
+  myApds.init();
   #endif
 }
 
@@ -789,10 +851,10 @@ void presentation() {
  */
 void loop()
 {
-  MyMySensorsBase::update();
   #ifdef USE_APDS9930
-  APDS9930_update();
+  myApds.update();
   #endif
+  MyMySensorsBase::update();
 }
 
 void receive(const MyMessage &message) {
