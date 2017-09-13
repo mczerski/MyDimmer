@@ -2,22 +2,12 @@
 //#define MY_DEBUG
 //#define MY_MY_DEBUG
 
-// Enable and select radio type attached
-#define MY_RADIO_NRF24
-#define MY_RF24_CE_PIN 7
-#define MY_RF24_CS_PIN 4
-#define MY_RF24_PA_LEVEL RF24_PA_MAX
-#define MY_RF24_CHANNEL 100
-//#define MY_RADIO_RFM69
-#define MY_REPEATER_FEATURE
-#define MY_OTA_FIRMWARE_FEATURE
-#define MY_TRANSPORT_WAIT_READY_MS 1
-
 #define LIVINGROOM
 
 #ifdef KITCHEN
 #define MY_NODE_ID 8
 #define TEMP_PIN A4
+#define APDS9930_NUM 1
 #endif
 
 #ifdef LIVINGROOM
@@ -31,11 +21,14 @@
 #ifdef BATHROOM1
 #define MY_NODE_ID 10
 #define TEMP_PIN A4
+#define APDS9930_NUM 1
+#define MY_REPEATER_FEATURE
 #endif
 
 #ifdef BATHROOM2
 #define MY_NODE_ID 9
 #define TEMP_PIN A4
+#define APDS9930_NUM 1
 #endif
 
 #ifdef BEDROOM
@@ -44,7 +37,18 @@
 #define APDS9930_INT A3
 #define APDS9930_NUM 2
 #define TEMP_PIN A1
+#define MY_REPEATER_FEATURE
 #endif
+
+// Enable and select radio type attached
+#define MY_RADIO_NRF24
+#define MY_RF24_CE_PIN 7
+#define MY_RF24_CS_PIN 4
+#define MY_RF24_PA_LEVEL RF24_PA_MAX
+#define MY_RF24_CHANNEL 100
+//#define MY_RADIO_RFM69
+#define MY_OTA_FIRMWARE_FEATURE
+#define MY_TRANSPORT_WAIT_READY_MS 1
 
 #include "MyMySensors/MyMySensors.h"
 #include <Bounce2.h>
@@ -59,7 +63,7 @@ using namespace mymysensors;
 
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "1"
-#define SKETCH_MINOR_VER "13"
+#define SKETCH_MINOR_VER "14"
 
 void setPwmFrequency(int pin, int divisor) {
   byte mode;
