@@ -2,9 +2,9 @@
 //#define MY_DEBUG
 //#define MY_MY_DEBUG
 
-#define BATHROOM2
+#define BATHROOM1
 #define SKETCH_MAJOR_VER "1"
-#define SKETCH_MINOR_VER "15"
+#define SKETCH_MINOR_VER "16"
 
 #ifdef KITCHEN
 #define MY_NODE_ID 8
@@ -693,27 +693,58 @@ public:
 
 class MySceneController : public MyMySensorsBase
 {
+  enum State {
+    WAITING_FOR_RISING,
+    WAITING_FOR_SCENE,
+    WAITING_FOR_FALLING
+  };
+  State state_;
   bool prevSwState_;
+  unsigned long lastSwRiseTime_;
   Switch &sw_;
   MyMessage sceneMsg_;
-  void sendScene_() {
-    sendValue(sceneMsg_, 0);
+  bool isRising_(bool swState) {
+    return swState == true and prevSwState_ == false;
+  }
+  bool isHeldLongEnough_(bool swState) {
+    return swState == true and prevSwState_ == true and millis() > lastSwRiseTime_ + 1000;
+  }
+  bool isFalling(bool swState) {
+    return swState == false and prevSwState_ == true;
+  }
+  void sendScene_(uint8_t scene) {
+    sendValue(sceneMsg_, scene);
     #ifdef MY_MY_DEBUG
-    Serial.print("sendScene_ for child id ");
+    Serial.print("sendScene_ ");
+    Serial.print(scene);
+    Serial.print(" for child id ");
     Serial.println(sceneMsg_.sensor);
     #endif
   }
   void update_() override {
     bool currSwState = sw_.update();
-    if (prevSwState_ != currSwState && currSwState) {
-        sendScene_();
+    if (isRising_(currSwState)) {
+      lastSwRiseTime_ = millis();
+      state_ = WAITING_FOR_SCENE;
+    }
+    else if (state_ == WAITING_FOR_SCENE and isHeldLongEnough_(currSwState)) {
+      state_ = WAITING_FOR_FALLING;
+      sendScene_(1);
+    }
+    else if (isFalling(currSwState)) {
+      if (state_ == WAITING_FOR_SCENE) {
+        sendScene_(0);
+      }
+      state_ = WAITING_FOR_RISING;
     }
     prevSwState_ = currSwState;
   }
 public:
   MySceneController(uint8_t sensorId, Switch &sw)
     : MyMySensorsBase(sensorId, S_SCENE_CONTROLLER),
+      state_(WAITING_FOR_RISING),
       prevSwState_(false),
+      lastSwRiseTime_(0),
       sw_(sw),
       sceneMsg_(sensorId, V_SCENE_ON) {}
 };
