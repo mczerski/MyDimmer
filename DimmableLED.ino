@@ -2,7 +2,9 @@
 //#define MY_DEBUG
 //#define MY_MY_DEBUG
 
-#define LIVINGROOM
+#define BATHROOM2
+#define SKETCH_MAJOR_VER "1"
+#define SKETCH_MINOR_VER "15"
 
 #ifdef KITCHEN
 #define MY_NODE_ID 8
@@ -62,8 +64,6 @@
 using namespace mymysensors;
 
 #define SKETCH_NAME "Dimmer"
-#define SKETCH_MAJOR_VER "1"
-#define SKETCH_MINOR_VER "14"
 
 void setPwmFrequency(int pin, int divisor) {
   byte mode;
@@ -691,6 +691,33 @@ public:
   }
 };
 
+class MySceneController : public MyMySensorsBase
+{
+  bool prevSwState_;
+  Switch &sw_;
+  MyMessage sceneMsg_;
+  void sendScene_() {
+    sendValue(sceneMsg_, 0);
+    #ifdef MY_MY_DEBUG
+    Serial.print("sendScene_ for child id ");
+    Serial.println(sceneMsg_.sensor);
+    #endif
+  }
+  void update_() override {
+    bool currSwState = sw_.update();
+    if (prevSwState_ != currSwState && currSwState) {
+        sendScene_();
+    }
+    prevSwState_ = currSwState;
+  }
+public:
+  MySceneController(uint8_t sensorId, Switch &sw)
+    : MyMySensorsBase(sensorId, S_SCENE_CONTROLLER),
+      prevSwState_(false),
+      sw_(sw),
+      sceneMsg_(sensorId, V_SCENE_ON) {}
+};
+
 template <typename ValueType, ValueType (*ReadValueCb)(), int16_t (*StartMeasurementCb)()>
 class MyRequestingValue : public EventBase, public MyMySensorsBase
 {
@@ -794,13 +821,21 @@ SimpleDimmer dim3(10, true, 10, {0, 0});
 
 #ifdef BATHROOM1
 #define DIMMER1
+#define SCENE2
+#define SCENE3
 BounceSwitch sw1(A3, 50, true);
+BounceSwitch sw2(A2, 50, true);
+BounceSwitch sw3(A1, 50, true);
 SimpleDimmer dim1(10, false, 10, {1, 1});
 #endif
 
 #ifdef BATHROOM2
 #define DIMMER1
+#define SCENE2
+#define SCENE3
 BounceSwitch sw1(A3, 50, true);
+BounceSwitch sw2(A2, 50, true);
+BounceSwitch sw3(A1, 50, true);
 SimpleDimmer dim1(10, false, 10, {1, 1});
 #endif
 
@@ -821,6 +856,15 @@ MyDimmerSwitch dimmer2(1, dim2, sw2);
 #endif
 #ifdef DIMMER3
 MyDimmerSwitch dimmer3(2, dim3, sw3);
+#endif
+#ifdef SCENE1
+MySceneController scene1(3, sw1);
+#endif
+#ifdef SCENE2
+MySceneController scene2(4, sw2);
+#endif
+#ifdef SCENE3
+MySceneController scene3(5, sw3);
 #endif
 
 MyRequestingValue<float, readTempMeasurement, startTempMeasurement> temperature(6, V_TEMP, S_TEMP, 60000);
