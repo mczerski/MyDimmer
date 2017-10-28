@@ -4,7 +4,7 @@
 
 #define BATHROOM1
 #define SKETCH_MAJOR_VER "1"
-#define SKETCH_MINOR_VER "16"
+#define SKETCH_MINOR_VER "17"
 
 #ifdef KITCHEN
 #define MY_NODE_ID 8
@@ -331,7 +331,7 @@ public:
         request(255);
       }
       else if (functions_.slowDimming or functions_.fullBrightness) {
-        set(state_ == OFF);
+        set(state_ == OFF or state_ == DIMMING_DOWN);
       }
     }
     lastPinValue_ = value;
