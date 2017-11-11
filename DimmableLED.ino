@@ -2,9 +2,9 @@
 //#define MY_DEBUG
 //#define MY_MY_DEBUG
 
-#define BATHROOM1
+#define KITCHEN
 #define SKETCH_MAJOR_VER "1"
-#define SKETCH_MINOR_VER "17"
+#define SKETCH_MINOR_VER "18"
 
 #ifdef KITCHEN
 #define MY_NODE_ID 8
@@ -675,6 +675,7 @@ class MyRelaySwitch : public MyMySensorsBase
         #endif
 
         state_ = requestedState;
+        sendCurrentState_();
       }
     }
   }
