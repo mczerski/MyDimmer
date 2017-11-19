@@ -4,7 +4,7 @@
 
 #define BEDROOM
 #define SKETCH_MAJOR_VER "1"
-#define SKETCH_MINOR_VER "19"
+#define SKETCH_MINOR_VER "20"
 
 #ifdef KITCHEN
 #define MY_NODE_ID 8
@@ -703,6 +703,7 @@ class MySceneController : public MyMySensorsBase
   unsigned long lastSwRiseTime_;
   Switch &sw_;
   MyMyMessage sceneMsg_;
+  bool enableShortPress_;
   bool isRising_(bool swState) {
     return swState == true and prevSwState_ == false;
   }
@@ -733,20 +734,23 @@ class MySceneController : public MyMySensorsBase
     }
     else if (isFalling(currSwState)) {
       if (state_ == WAITING_FOR_SCENE) {
-        sendScene_(0);
+        if (enableShortPress_) {
+          sendScene_(0);
+        }
       }
       state_ = WAITING_FOR_RISING;
     }
     prevSwState_ = currSwState;
   }
 public:
-  MySceneController(uint8_t sensorId, Switch &sw)
+  MySceneController(uint8_t sensorId, Switch &sw, bool enableShortPress=true)
     : MyMySensorsBase(sensorId, S_SCENE_CONTROLLER),
       state_(WAITING_FOR_RISING),
       prevSwState_(false),
       lastSwRiseTime_(0),
       sw_(sw),
-      sceneMsg_(sensorId, V_SCENE_ON) {}
+      sceneMsg_(sensorId, V_SCENE_ON),
+      enableShortPress_(enableShortPress) {}
 };
 
 template <typename ValueType, ValueType (*ReadValueCb)(), int16_t (*StartMeasurementCb)()>
@@ -853,7 +857,9 @@ SimpleDimmer dim3(10, true, 10, {0, 0});
 #ifdef BATHROOM1
 #define DIMMER1
 #define SCENE2
+#define SCENE2_ENABLE_SHORT true
 #define SCENE3
+#define SCENE3_ENABLE_SHORT true
 BounceSwitch sw1(A3, 50, true);
 BounceSwitch sw2(A2, 50, true);
 BounceSwitch sw3(A1, 50, true);
@@ -863,7 +869,9 @@ SimpleDimmer dim1(10, false, 10, {1, 1});
 #ifdef BATHROOM2
 #define DIMMER1
 #define SCENE2
+#define SCENE2_ENABLE_SHORT true
 #define SCENE3
+#define SCENE3_ENABLE_SHORT true
 BounceSwitch sw1(A3, 50, true);
 BounceSwitch sw2(A2, 50, true);
 BounceSwitch sw3(A1, 50, true);
@@ -873,6 +881,10 @@ SimpleDimmer dim1(10, false, 10, {1, 1});
 #ifdef BEDROOM
 #define DIMMER1
 #define DIMMER2
+#define SCENE1
+#define SCENE1_ENABLE_SHORT false
+#define SCENE2
+#define SCENE2_ENABLE_SHORT false
 APDS9930Switch sw1(myApds, 0);
 APDS9930Switch sw2(myApds, 1);
 SimpleDimmer dim1(3, true, 10, {0, 0});
@@ -889,13 +901,13 @@ MyDimmerSwitch dimmer2(1, dim2, sw2);
 MyDimmerSwitch dimmer3(2, dim3, sw3);
 #endif
 #ifdef SCENE1
-MySceneController scene1(3, sw1);
+MySceneController scene1(3, sw1, SCENE1_ENABLE_SHORT);
 #endif
 #ifdef SCENE2
-MySceneController scene2(4, sw2);
+MySceneController scene2(4, sw2, SCENE2_ENABLE_SHORT);
 #endif
 #ifdef SCENE3
-MySceneController scene3(5, sw3);
+MySceneController scene3(5, sw3, SCENE3_ENABLE_SHORT);
 #endif
 
 MyRequestingValue<float, readTempMeasurement, startTempMeasurement> temperature(6, V_TEMP, S_TEMP, 60000);
