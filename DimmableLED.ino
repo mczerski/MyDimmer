@@ -2,9 +2,9 @@
 //#define MY_DEBUG
 //#define MY_MY_DEBUG
 
-#define KITCHEN
+#define BEDROOM
 #define SKETCH_MAJOR_VER "1"
-#define SKETCH_MINOR_VER "18"
+#define SKETCH_MINOR_VER "19"
 
 #ifdef KITCHEN
 #define MY_NODE_ID 8
@@ -24,7 +24,6 @@
 #define MY_NODE_ID 10
 #define TEMP_PIN A4
 #define APDS9930_NUM 1
-#define MY_REPEATER_FEATURE
 #endif
 
 #ifdef BATHROOM2
@@ -39,7 +38,6 @@
 #define APDS9930_INT A3
 #define APDS9930_NUM 2
 #define TEMP_PIN A1
-#define MY_REPEATER_FEATURE
 #endif
 
 // Enable and select radio type attached
@@ -135,8 +133,10 @@ public:
     }
   }
   static void receive(const MyMessage &message) {
-    if (message.isAck())
+    if (message.isAck()) {
+      MyMyMessage::setSent(message);
       return;
+    }
     for (size_t i=0; i<sensorsCount_; i++)
       if (sensors_[i]->sensorId_ == message.sensor)
         sensors_[i]->receive_(message);
@@ -417,10 +417,9 @@ class BounceSwitch : public Switch {
     return switch_.read();
   }
 public:
-  BounceSwitch(uint8_t pin, unsigned long interval_ms, bool activeLow = false) : Switch(activeLow), switch_(pin, interval_ms) {
-    pinMode(pin, INPUT);
-    digitalWrite(pin, activeLow ? HIGH : LOW);
-    switch_.update();
+  BounceSwitch(uint8_t pin, unsigned long interval_ms, bool activeLow = false) : Switch(activeLow) {
+    switch_.attach(pin, activeLow ? INPUT_PULLUP : INPUT);
+    switch_.interval(interval_ms);
   }
 };
 
@@ -564,8 +563,8 @@ class MyDimmerSwitch : public MyMySensorsBase
 {
   Dimmer &dim_;
   Switch &sw_;
-  MyMessage dimmerMsg_;
-  MyMessage lightMsg_;
+  MyMyMessage dimmerMsg_;
+  MyMyMessage lightMsg_;
   static uint8_t fromPercentage_(uint8_t percentage) {
     return uint8_t(round(255.0*percentage/100));
   }
@@ -574,8 +573,8 @@ class MyDimmerSwitch : public MyMySensorsBase
   }
   void sendCurrentLevel_() {
     uint8_t percentage = fromLevel_(dim_.getLevel());
-    sendValue(lightMsg_, percentage > 0 ? 1 : 0);
-    sendValue(dimmerMsg_, percentage);
+    lightMsg_.send(percentage > 0 ? 1 : 0);
+    dimmerMsg_.send(percentage);
     #ifdef MY_MY_DEBUG
     Serial.print("sendCurrentLevel ");
     Serial.print(percentage);
@@ -635,9 +634,9 @@ class MyRelaySwitch : public MyMySensorsBase
   bool prevSwState_;
   int relayPin_;
   Switch &sw_;
-  MyMessage lightMsg_;
+  MyMyMessage lightMsg_;
   void sendCurrentState_() {
-    sendValue(lightMsg_, state_);
+    lightMsg_.send(state_);
     #ifdef MY_MY_DEBUG
     Serial.print("sendCurrentState ");
     Serial.print(state_);
@@ -703,7 +702,7 @@ class MySceneController : public MyMySensorsBase
   bool prevSwState_;
   unsigned long lastSwRiseTime_;
   Switch &sw_;
-  MyMessage sceneMsg_;
+  MyMyMessage sceneMsg_;
   bool isRising_(bool swState) {
     return swState == true and prevSwState_ == false;
   }
@@ -714,12 +713,12 @@ class MySceneController : public MyMySensorsBase
     return swState == false and prevSwState_ == true;
   }
   void sendScene_(uint8_t scene) {
-    sendValue(sceneMsg_, scene);
+    sceneMsg_.send(scene);
     #ifdef MY_MY_DEBUG
     Serial.print("sendScene_ ");
     Serial.print(scene);
     Serial.print(" for child id ");
-    Serial.println(sceneMsg_.sensor);
+    Serial.println(sceneMsg_.getMyMessage().sensor);
     #endif
   }
   void update_() override {
@@ -753,7 +752,7 @@ public:
 template <typename ValueType, ValueType (*ReadValueCb)(), int16_t (*StartMeasurementCb)()>
 class MyRequestingValue : public EventBase, public MyMySensorsBase
 {
-  MyMessage msg_;
+  MyMyMessage msg_;
   uint8_t childId_;
   uint8_t sensorType_;
   ValueType value_;
@@ -798,8 +797,8 @@ class MyRequestingValue : public EventBase, public MyMySensorsBase
     timer_.update();
   }
   void receive_(const MyMessage &message) {
-    if (message.type == msg_.type and mGetCommand(message) == C_REQ)
-      sendValue(msg_, value_);
+    if (message.type == sensorType_ and mGetCommand(message) == C_REQ)
+      msg_.send(value_);
   }
 
 public:
