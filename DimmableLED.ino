@@ -1,10 +1,13 @@
+#include "prescaler.h"
+
 // Enable debug prints to serial monitor
 //#define MY_DEBUG
 //#define MY_MY_DEBUG
 
 #define BEDROOM
+#define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "1"
-#define SKETCH_MINOR_VER "20"
+#define SKETCH_MINOR_VER "23"
 
 #ifdef KITCHEN
 #define MY_NODE_ID 8
@@ -61,8 +64,6 @@
 
 using namespace mymysensors;
 
-#define SKETCH_NAME "Dimmer"
-
 void setPwmFrequency(int pin, int divisor) {
   byte mode;
   if(pin == 5 || pin == 6 || pin == 9 || pin == 10) {
@@ -106,6 +107,12 @@ class MyMySensorsBase
   static uint8_t sensorsCount_;
   static MyMySensorsBase* sensors_[MAX_SENSORS];
   static bool loopCalled_;
+  static SoftTimer timer_;
+
+  static boolean heartbeatCb(EventBase*) {
+    sendHeartbeat();
+    return false;
+  }
 
 public:
   MyMySensorsBase(uint8_t sensorId, uint8_t sensorType)
@@ -115,6 +122,7 @@ public:
       sensors_[sensorsCount_++] = this;
   }
   static void begin() {
+    timer_.every(rescaleDuration(60000), &MyMySensorsBase::heartbeatCb, rescaleDuration(60000));
     for (size_t i=0; i<sensorsCount_; i++)
       sensors_[i]->begin_();
   }
@@ -123,6 +131,7 @@ public:
       ::present(sensors_[i]->sensorId_, sensors_[i]->sensorType_);
   }
   static void update() {
+    timer_.update();
     for (size_t i=0; i<sensorsCount_; i++)
       sensors_[i]->update_();
     if (not loopCalled_) {
@@ -141,11 +150,15 @@ public:
       if (sensors_[i]->sensorId_ == message.sensor)
         sensors_[i]->receive_(message);
   }
+  static int16_t addEvent(EventBase* evt) {
+    return timer_.addEvent(evt);
+  }
 };
 
 uint8_t MyMySensorsBase::sensorsCount_ = 0;
 MyMySensorsBase * MyMySensorsBase::sensors_[];
 bool MyMySensorsBase::loopCalled_ = false;
+SoftTimer MyMySensorsBase::timer_;
 
 struct Functions {
   uint8_t slowDimming : 1;
@@ -193,7 +206,7 @@ class Dimmer {
   bool updateLevel_() {
     if (isInIdleState_())
       return false;
-    unsigned long currentTime = millis();
+    unsigned long currentTime = trueMillis();
     if (currentTime < nextChangeTime_)
       return false;
     handleDimming_();
@@ -250,7 +263,7 @@ class Dimmer {
   }
 
   bool isHeldLongEnough_(bool pinValue) {
-    return pinValue == true and lastPinValue_ == true and millis() > lastPinRiseTime_ + 2000;
+    return pinValue == true and lastPinValue_ == true and trueMillis() > lastPinRiseTime_ + 2000;
   }
 
   bool isFalling(bool pinValue) {
@@ -258,7 +271,7 @@ class Dimmer {
   }
 
   bool isLongPress() {
-    return millis() > lastPinRiseTime_ + 500;
+    return trueMillis() > lastPinRiseTime_ + 500;
   }
 
   bool isInSlowDimming_() {
@@ -270,7 +283,7 @@ class Dimmer {
   }
 
   void triggerLevelChange_() {
-    nextChangeTime_ = millis();
+    nextChangeTime_ = trueMillis();
   }
 
   void startSlowDimming_() {
@@ -313,7 +326,7 @@ public:
       if (not functions_.slowDimming and not functions_.fullBrightness)
         set(state_ == OFF);
       else
-        lastPinRiseTime_ = millis();
+        lastPinRiseTime_ = trueMillis();
     }
     else if (isHeldLongEnough_(value)) {
       if (not isInSlowDimming_() and functions_.slowDimming) {
@@ -446,6 +459,7 @@ class MyAPDS9930 {
 
   void pcaSelect_(uint8_t i) {
     #if APDS9930_NUM == 1
+    (void)i;
     return;
     #else
     if (i > 3) return;
@@ -500,6 +514,7 @@ class MyAPDS9930 {
       Serial.println(F("Error writing high threshold"));
     }
     #endif
+    (void)status;
   }
   void update_(uint8_t i) {
     pcaSelect_(i);
@@ -708,7 +723,7 @@ class MySceneController : public MyMySensorsBase
     return swState == true and prevSwState_ == false;
   }
   bool isHeldLongEnough_(bool swState) {
-    return swState == true and prevSwState_ == true and millis() > lastSwRiseTime_ + 1000;
+    return swState == true and prevSwState_ == true and trueMillis() > lastSwRiseTime_ + 1000;
   }
   bool isFalling(bool swState) {
     return swState == false and prevSwState_ == true;
@@ -725,7 +740,7 @@ class MySceneController : public MyMySensorsBase
   void update_() override {
     bool currSwState = sw_.update();
     if (isRising_(currSwState)) {
-      lastSwRiseTime_ = millis();
+      lastSwRiseTime_ = trueMillis();
       state_ = WAITING_FOR_SCENE;
     }
     else if (state_ == WAITING_FOR_SCENE and isHeldLongEnough_(currSwState)) {
@@ -760,15 +775,14 @@ class MyRequestingValue : public EventBase, public MyMySensorsBase
   uint8_t childId_;
   uint8_t sensorType_;
   ValueType value_;
-  SoftTimer timer_;
   int32_t interval_;
   void scheduleEvent(boolean (*cb)(EventBase*), int32_t delayMs)
   {
     this->period = 0;
     this->repeatCount = 1;
-    this->nextTriggerTime = millis() + delayMs;
+    this->nextTriggerTime = trueMillis() + delayMs;
     this->callback = cb;
-    timer_.addEvent(this);
+    this->addEvent(this);
   }
   static boolean readValue_(EventBase* event)
   {
@@ -796,9 +810,6 @@ class MyRequestingValue : public EventBase, public MyMySensorsBase
   }
   void begin_() {
     scheduleEvent(startMeasurement_, 0);
-  }
-  void update_() {
-    timer_.update();
   }
   void receive_(const MyMessage &message) {
     if (message.type == sensorType_ and mGetCommand(message) == C_REQ)
@@ -850,8 +861,8 @@ AnalogBounceSwitch sw1(A7, 50, true);
 BounceSwitch sw2(A2, 50, true);
 BounceSwitch sw3(APDS9930_INT, 50, true);
 CwWwDimmer dim1(3, 5, true, 10, {1, 1});
-SimpleDimmer dim2(6, false, 10, {1, 1});
-SimpleDimmer dim3(10, true, 10, {0, 0});
+CwWwDimmer dim2(9, 10, false, 10, {1, 1});
+SimpleDimmer dim3(6, true, 10, {0, 0});
 #endif
 
 #ifdef BATHROOM1
@@ -917,10 +928,11 @@ MyRequestingValue<float, readTempMeasurement, startTempMeasurement> temperature(
  */
 void setup()
 {
+  setClockPrescaler(CLOCK_PRESCALER_2);
   Serial.begin(115200);
-  setPwmFrequency(3, 64);
-  setPwmFrequency(6, 64);
-  setPwmFrequency(10, 64);
+  setPwmFrequency(3, 64); //488Hz, also pin 11
+  setPwmFrequency(5, 64); //977Hz, also pin 6
+  setPwmFrequency(9, 64); //488Hz, also pin 10
   tempSensor.begin();
   tempSensor.setWaitForConversion(false);
   MyMySensorsBase::begin();
