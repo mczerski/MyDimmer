@@ -1,5 +1,4 @@
-#include "prescaler.h"
-#include <limits.h>
+#include "MyMySensors/MyDuration.h"
 
 // Enable debug prints to serial monitor
 //#define MY_DEBUG
@@ -95,34 +94,6 @@ void setPwmFrequency(int pin, int divisor) {
     TCCR2B = (TCCR2B & 0b11111000) | mode;
   }
 }
-
-class MyDuration
-{
-public:
-  typedef unsigned long duration_ms_t;
-  explicit MyDuration(duration_ms_t duration) : duration_(rescaleDuration(duration)) {}
-  explicit MyDuration() : duration_(millis()) {}
-  duration_ms_t getMilis() const {
-    return rescaleTime(duration_);
-  }
-  bool operator<(const MyDuration &other){
-    duration_ms_t difference = duration_ - other.duration_;
-    return difference >= ULONG_MAX/2;
-  }
-  void operator+=(const MyDuration &other) {
-    duration_ += other.duration_;
-  }
-  void operator*=(int factor) {
-    duration_ *= factor;
-  }
-  MyDuration operator+(const MyDuration &other) {
-    MyDuration result = *this;
-    result += other;
-    return result;
-  }
-private:
-  duration_ms_t duration_;
-};
 
 class MyMySensorsBase
 {
@@ -795,31 +766,33 @@ public:
       enableShortPress_(enableShortPress) {}
 };
 
-template <typename ValueType, ValueType (*ReadValueCb)(), int16_t (*StartMeasurementCb)()>
+template <typename ValueType>
 class MyRequestingValue : public EventBase, public MyMySensorsBase
 {
   MyMyMessage msg_;
   uint8_t childId_;
   uint8_t sensorType_;
   ValueType value_;
-  int32_t interval_;
-  void scheduleEvent(boolean (*cb)(EventBase*), int32_t delayMs)
+  MyDuration interval_;
+  void scheduleEvent(boolean (*cb)(EventBase*), MyDuration delayMs)
   {
     this->period = 0;
     this->repeatCount = 1;
-    this->nextTriggerTime = trueMillis() + delayMs;
+    MyDuration nextTriggerTime;
+    nextTriggerTime += delayMs;
+    this->nextTriggerTime = nextTriggerTime.get();
     this->callback = cb;
     this->addEvent(this);
   }
   static boolean readValue_(EventBase* event)
   {
     MyRequestingValue* myRequestingValue = static_cast<MyRequestingValue*>(event);
-    myRequestingValue->value_ = (*ReadValueCb)();
+    myRequestingValue->value_ = myRequestingValue->readValueCb_();
     #ifdef MY_MY_DEBUG
     Serial.print("readValue: ");
     Serial.print(myRequestingValue->value_);
     Serial.print(" next measurement: ");
-    Serial.println(myRequestingValue->interval_);
+    Serial.println(myRequestingValue->interval_.getMilis());
     #endif
     myRequestingValue->scheduleEvent(MyRequestingValue::startMeasurement_, myRequestingValue->interval_);
     return true;
@@ -827,43 +800,52 @@ class MyRequestingValue : public EventBase, public MyMySensorsBase
   static boolean startMeasurement_(EventBase* event)
   {
     MyRequestingValue* myRequestingValue = static_cast<MyRequestingValue*>(event);
-    int16_t conversionTime = (*StartMeasurementCb)();
+    MyDuration conversionTime = myRequestingValue->startMeasurementCb_();
     #ifdef MY_MY_DEBUG
     Serial.print("startMeasurement conversionTime: ");
-    Serial.println(conversionTime);
+    Serial.println(conversionTime.getMilis());
     #endif
     myRequestingValue->scheduleEvent(MyRequestingValue::readValue_, conversionTime);
     return true;
   }
-  void begin_() {
-    scheduleEvent(startMeasurement_, 0);
+  virtual void begin2_() {}
+  void begin_() override {
+    scheduleEvent(startMeasurement_, MyDuration(0));
+    begin2_();
   }
-  void receive_(const MyMessage &message) {
+  void receive_(const MyMessage &message) override {
     if (message.type == sensorType_ and mGetCommand(message) == C_REQ)
       msg_.send(value_);
   }
+  virtual ValueType readValueCb_() = 0;
+  virtual MyDuration startMeasurementCb_() = 0;
 
 public:
-  MyRequestingValue(uint8_t sensorId, uint8_t type, uint8_t sensorType, int32_t interval)
+  MyRequestingValue(uint8_t sensorId, uint8_t type, uint8_t sensorType, MyDuration interval)
     : MyMySensorsBase(sensorId, sensorType),
       msg_(sensorId, type),
       interval_(interval)
   {}
 };
 
-OneWire oneWire(TEMP_PIN);
-DallasTemperature tempSensor(&oneWire);
-
-float readTempMeasurement()
-{
-  return tempSensor.getTempCByIndex(0);
-}
-
-int16_t startTempMeasurement()
-{
-  tempSensor.requestTemperatures();
-  return tempSensor.millisToWaitForConversion(tempSensor.getResolution());
-}
+class MyTemperatureSensor : public MyRequestingValue<float> {
+public:
+  MyTemperatureSensor(uint8_t pin, uint8_t sensorId, MyDuration interval) : MyRequestingValue<float>(sensorId, V_TEMP, S_TEMP, interval), oneWire_(pin), tempSensor_(&oneWire_) {}
+private:
+  OneWire oneWire_;
+  DallasTemperature tempSensor_;
+  float readValueCb_() override {
+    return tempSensor_.getTempCByIndex(0);
+  }
+  MyDuration startMeasurementCb_() override {
+    tempSensor_.requestTemperatures();
+    return MyDuration(tempSensor_.millisToWaitForConversion(tempSensor_.getResolution()));
+  }
+  void begin2_() override {
+    tempSensor_.begin();
+    tempSensor_.setWaitForConversion(false);
+  }
+};
 
 #ifdef USE_APDS9930
 MyAPDS9930 myApds(APDS9930_INT);
@@ -948,20 +930,18 @@ MySceneController scene2(4, sw2, SCENE2_ENABLE_SHORT);
 MySceneController scene3(5, sw3, SCENE3_ENABLE_SHORT);
 #endif
 
-MyRequestingValue<float, readTempMeasurement, startTempMeasurement> temperature(6, V_TEMP, S_TEMP, 60000);
+MyTemperatureSensor tempSensor(TEMP_PIN, 6, MyDuration(60000));
 
 /***
  * Dimmable LED initialization method
  */
 void setup()
 {
-  setClockPrescaler(CLOCK_PRESCALER_2);
-  Serial.begin(115200);
+  MyDuration::setClockPrescaler(CLOCK_PRESCALER_2);
   setPwmFrequency(3, 64); //488Hz, also pin 11
   setPwmFrequency(5, 64); //977Hz, also pin 6
   setPwmFrequency(9, 64); //488Hz, also pin 10
-  tempSensor.begin();
-  tempSensor.setWaitForConversion(false);
+  Serial.begin(115200);
   MyMySensorsBase::begin();
   #ifdef USE_APDS9930
   myApds.init();
