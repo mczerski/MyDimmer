@@ -1,4 +1,5 @@
 #include "prescaler.h"
+#include <limits.h>
 
 // Enable debug prints to serial monitor
 //#define MY_DEBUG
@@ -7,7 +8,7 @@
 #define BEDROOM
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "1"
-#define SKETCH_MINOR_VER "23"
+#define SKETCH_MINOR_VER "24"
 
 #ifdef KITCHEN
 #define MY_NODE_ID 8
@@ -95,6 +96,34 @@ void setPwmFrequency(int pin, int divisor) {
   }
 }
 
+class MyDuration
+{
+public:
+  typedef unsigned long duration_ms_t;
+  explicit MyDuration(duration_ms_t duration) : duration_(rescaleDuration(duration)) {}
+  explicit MyDuration() : duration_(millis()) {}
+  duration_ms_t getMilis() const {
+    return rescaleTime(duration_);
+  }
+  bool operator<(const MyDuration &other){
+    duration_ms_t difference = duration_ - other.duration_;
+    return difference >= ULONG_MAX/2;
+  }
+  void operator+=(const MyDuration &other) {
+    duration_ += other.duration_;
+  }
+  void operator*=(int factor) {
+    duration_ *= factor;
+  }
+  MyDuration operator+(const MyDuration &other) {
+    MyDuration result = *this;
+    result += other;
+    return result;
+  }
+private:
+  duration_ms_t duration_;
+};
+
 class MyMySensorsBase
 {
   virtual void begin_() {}
@@ -179,26 +208,26 @@ class Dimmer {
   uint8_t currentLevel_;
   uint8_t requestedLevel_;
   uint8_t lastLevel_;
-  unsigned long nextChangeTime_;
+  MyDuration nextChangeTime_;
   bool inverted_;
-  unsigned long lastPinRiseTime_;
+  MyDuration lastPinRiseTime_;
   uint8_t dimmSpeed_;
   static constexpr uint8_t maxDimmSpeed_ = 20;
   Functions functions_;
 
-  int fadeDelay_()
+  MyDuration fadeDelay_()
   {
     auto delayFactor = maxDimmSpeed_ - dimmSpeed_ + 1;
     if (currentLevel_ < 1*delayFactor)
-      return 25;
+      return MyDuration(25);
     else if (currentLevel_ < 2*delayFactor)
-      return 25;
+      return MyDuration(25);
     else if (currentLevel_ < 5*delayFactor)
-      return 10;
+      return MyDuration(10);
     else if (currentLevel_ < 10*delayFactor)
-      return 5;
+      return MyDuration(5);
     else
-      return 3;
+      return MyDuration(3);
   }
 
   virtual void setLevel_(uint8_t level) = 0;
@@ -206,15 +235,15 @@ class Dimmer {
   bool updateLevel_() {
     if (isInIdleState_())
       return false;
-    unsigned long currentTime = trueMillis();
+    MyDuration currentTime;
     if (currentTime < nextChangeTime_)
       return false;
     handleDimming_();
     setLevel_(currentLevel_);
-    int fadeDelay = fadeDelay_();
+    MyDuration fadeDelay = fadeDelay_();
     if (isInSlowDimming_())
       fadeDelay *= 3;
-    nextChangeTime_ = nextChangeTime_ + fadeDelay;
+    nextChangeTime_ += fadeDelay;
     return isInIdleState_();
   }
 
@@ -263,7 +292,7 @@ class Dimmer {
   }
 
   bool isHeldLongEnough_(bool pinValue) {
-    return pinValue == true and lastPinValue_ == true and trueMillis() > lastPinRiseTime_ + 2000;
+    return pinValue == true and lastPinValue_ == true and lastPinRiseTime_ + MyDuration(2000) < MyDuration();
   }
 
   bool isFalling(bool pinValue) {
@@ -271,7 +300,7 @@ class Dimmer {
   }
 
   bool isLongPress() {
-    return trueMillis() > lastPinRiseTime_ + 500;
+    return lastPinRiseTime_ + MyDuration(500) < MyDuration();
   }
 
   bool isInSlowDimming_() {
@@ -283,7 +312,7 @@ class Dimmer {
   }
 
   void triggerLevelChange_() {
-    nextChangeTime_ = trueMillis();
+    nextChangeTime_ = MyDuration();
   }
 
   void startSlowDimming_() {
@@ -314,8 +343,7 @@ protected:
 public:
   Dimmer(bool inverted, uint8_t dimmSpeed, Functions functions)
     : lastPinValue_(false), state_(OFF), currentLevel_(0),
-      requestedLevel_(0), lastLevel_(0),
-      nextChangeTime_(0), inverted_(inverted),
+      requestedLevel_(0), lastLevel_(0), inverted_(inverted),
       dimmSpeed_(min(maxDimmSpeed_, dimmSpeed)),
       functions_(functions) {}
 
@@ -326,7 +354,7 @@ public:
       if (not functions_.slowDimming and not functions_.fullBrightness)
         set(state_ == OFF);
       else
-        lastPinRiseTime_ = trueMillis();
+        lastPinRiseTime_ = MyDuration();
     }
     else if (isHeldLongEnough_(value)) {
       if (not isInSlowDimming_() and functions_.slowDimming) {
@@ -430,9 +458,9 @@ class BounceSwitch : public Switch {
     return switch_.read();
   }
 public:
-  BounceSwitch(uint8_t pin, unsigned long interval_ms, bool activeLow = false) : Switch(activeLow) {
+  BounceSwitch(uint8_t pin, MyDuration interval_ms, bool activeLow = false) : Switch(activeLow) {
     switch_.attach(pin, activeLow ? INPUT_PULLUP : INPUT);
-    switch_.interval(interval_ms);
+    switch_.interval(interval_ms.getMilis());
   }
 };
 
@@ -444,7 +472,7 @@ class AnalogBounceSwitch : public Switch {
     return !button_.isPressed(0);
   }
 public:
-  AnalogBounceSwitch(uint8_t pin, unsigned long interval_ms, bool activeLow = false) : Switch(activeLow), button_(pin, 1, buttonValues_, interval_ms) {
+  AnalogBounceSwitch(uint8_t pin, MyDuration interval_ms, bool activeLow = false) : Switch(activeLow), button_(pin, 1, buttonValues_, interval_ms.getMilis()) {
     button_.update();
   }
 };
@@ -715,7 +743,7 @@ class MySceneController : public MyMySensorsBase
   };
   State state_;
   bool prevSwState_;
-  unsigned long lastSwRiseTime_;
+  MyDuration lastSwRiseTime_;
   Switch &sw_;
   MyMyMessage sceneMsg_;
   bool enableShortPress_;
@@ -723,7 +751,7 @@ class MySceneController : public MyMySensorsBase
     return swState == true and prevSwState_ == false;
   }
   bool isHeldLongEnough_(bool swState) {
-    return swState == true and prevSwState_ == true and trueMillis() > lastSwRiseTime_ + 1000;
+    return swState == true and prevSwState_ == true and lastSwRiseTime_ + MyDuration(1000) < MyDuration();
   }
   bool isFalling(bool swState) {
     return swState == false and prevSwState_ == true;
@@ -740,7 +768,7 @@ class MySceneController : public MyMySensorsBase
   void update_() override {
     bool currSwState = sw_.update();
     if (isRising_(currSwState)) {
-      lastSwRiseTime_ = trueMillis();
+      lastSwRiseTime_ = MyDuration();
       state_ = WAITING_FOR_SCENE;
     }
     else if (state_ == WAITING_FOR_SCENE and isHeldLongEnough_(currSwState)) {
@@ -762,7 +790,6 @@ public:
     : MyMySensorsBase(sensorId, S_SCENE_CONTROLLER),
       state_(WAITING_FOR_RISING),
       prevSwState_(false),
-      lastSwRiseTime_(0),
       sw_(sw),
       sceneMsg_(sensorId, V_SCENE_ON),
       enableShortPress_(enableShortPress) {}
