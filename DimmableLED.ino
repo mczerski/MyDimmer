@@ -4,10 +4,23 @@
 //#define MY_DEBUG_VERBOSE_RFM69
 //#define MY_MY_DEBUG
 
-#define LIVINGROOM
+#define KITCHEN
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "2"
 #define SKETCH_MINOR_VER "1"
+
+// Enable and select radio type attached
+//#define MY_RADIO_NRF24
+#define MY_RF24_CE_PIN 7
+#define MY_RF24_CS_PIN 4
+#define MY_RF24_PA_LEVEL RF24_PA_MAX
+#define MY_RF24_CHANNEL 100
+
+#define MY_RADIO_RFM69
+#define MY_RFM69_CS_PIN 4
+#define MY_RFM69_NEW_DRIVER
+#define MY_RFM69_ATC_MODE_DISABLED
+#define MY_RFM69_TX_POWER_DBM 0
 
 #ifdef KITCHEN
 #define MY_NODE_ID 8
@@ -44,21 +57,9 @@
 
 #ifdef LIVINGROOM_SCENE
 #define MY_NODE_ID 12
+#undef MY_RFM69_CS_PIN
+#define MY_RFM69_CS_PIN 10
 #endif
-
-// Enable and select radio type attached
-//#define MY_RADIO_NRF24
-#define MY_RF24_CE_PIN 7
-#define MY_RF24_CS_PIN 4
-#define MY_RF24_PA_LEVEL RF24_PA_MAX
-#define MY_RF24_CHANNEL 100
-
-#define MY_RADIO_RFM69
-#define MY_RFM69_CS_PIN 4
-#define MY_RFM69_NEW_DRIVER
-#define MY_RFM69_ATC_MODE_DISABLED
-#define MY_RFM69_TX_POWER_DBM 0
-//#define MY_IS_RFM69HW
 
 #define MY_OTA_FIRMWARE_FEATURE
 #define MY_TRANSPORT_WAIT_READY_MS 1
@@ -105,8 +106,10 @@ MyAPDS9930 myApds(APDS9930_INT);
 #endif
 
 #ifdef KITCHEN
+#define CLOCK_PRESCALER CLOCK_PRESCALER_2
 #define DIMMER1
 #define DIMMER2
+#define RELAY3
 #include "MyMySensors/BounceSwitch.h"
 BounceSwitch sw1(A1, MyDuration(50), true);
 BounceSwitch sw2(A2, MyDuration(50), true);
@@ -114,11 +117,12 @@ BounceSwitch sw3(A3, MyDuration(50), true);
 #include "MyMySensors/Dimmer.h"
 CwWwDimmer dim1(9, 10, false, 10, {1, 1});
 SimpleDimmer dim2(3, false, 10, {1, 1});
-#include "MyMySensors/MyRelaySwitch.h"
-MyRelaySwitch relay3(2, sw3, 5);
+#include "MyMySensors/Relay.h"
+Relay rel3(5);
 #endif
 
 #ifdef LIVINGROOM
+#define CLOCK_PRESCALER CLOCK_PRESCALER_1
 #define DIMMER1
 #define DIMMER2
 #define DIMMER3
@@ -133,6 +137,7 @@ SimpleDimmer dim3(6, true, 10, {0, 0});
 #endif
 
 #ifdef BATHROOM1
+#define CLOCK_PRESCALER CLOCK_PRESCALER_1
 #define DIMMER1
 #define SCENE2
 #define SCENE2_ENABLE_SHORT true
@@ -147,6 +152,7 @@ SimpleDimmer dim1(10, false, 10, {1, 1});
 #endif
 
 #ifdef BATHROOM2
+#define CLOCK_PRESCALER CLOCK_PRESCALER_1
 #define DIMMER1
 #define SCENE2
 #define SCENE2_ENABLE_SHORT true
@@ -161,6 +167,7 @@ SimpleDimmer dim1(10, false, 10, {1, 1});
 #endif
 
 #ifdef BEDROOM
+#define CLOCK_PRESCALER CLOCK_PRESCALER_1
 #define DIMMER1
 #define DIMMER2
 #define SCENE1
@@ -175,6 +182,7 @@ SimpleDimmer dim2(5, true, 10, {0, 0});
 #endif
 
 #ifdef LIVINGROOM_SCENE
+#define CLOCK_PRESCALER CLOCK_PRESCALER_1
 #define SCENE1
 #define SCENE1_ENABLE_SHORT true
 #define SCENE2
@@ -201,6 +209,18 @@ MyDimmerSwitch dimmer2(1, dim2, sw2);
 #ifdef DIMMER3
 #include "MyMySensors/MyDimmerSwitch.h"
 MyDimmerSwitch dimmer3(2, dim3, sw3);
+#endif
+#ifdef RELAY1
+#include "MyMySensors/MyRelaySwitch.h"
+MyRelaySwitch relay1(0, rel1, sw1);
+#endif
+#ifdef RELAY2
+#include "MyMySensors/MyRelaySwitch.h"
+MyRelaySwitch relay2(1, rel2, sw2);
+#endif
+#ifdef RELAY3
+#include "MyMySensors/MyRelaySwitch.h"
+MyRelaySwitch relay3(2, rel3, sw3);
 #endif
 #ifdef SCENE1
 #include "MyMySensors/MySceneController.h"
@@ -229,10 +249,10 @@ MyTemperatureSensor tempSensor(TEMP_PIN, 6, MyDuration(60000));
  */
 void setup()
 {
-  //MyDuration::setClockPrescaler(CLOCK_PRESCALER_2);
-  setPwmFrequency(3, 64); //244Hz, also pin 11
-  setPwmFrequency(5, 64); //488Hz, also pin 6
-  setPwmFrequency(9, 64); //244Hz, also pin 10
+  MyDuration::setClockPrescaler(CLOCK_PRESCALER);
+  setPwmFrequency(3, 64); //244Hz/CLOCK_PRESCALER, also pin 11
+  setPwmFrequency(5, 64); //488Hz/CLOCK_PRESCALER, also pin 6
+  setPwmFrequency(9, 64); //244Hz/CLOCK_PRESCALER, also pin 10
   Serial.begin(115200);
   MyMySensorsBase::begin();
   #ifdef USE_APDS9930
