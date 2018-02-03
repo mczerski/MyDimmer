@@ -4,7 +4,7 @@
 //#define MY_DEBUG_VERBOSE_RFM69
 //#define MY_MY_DEBUG
 
-#define KITCHEN
+#define LIVINGROOM
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "2"
 #define SKETCH_MINOR_VER "1"
@@ -124,15 +124,12 @@ Relay rel3(5);
 #ifdef LIVINGROOM
 #define CLOCK_PRESCALER CLOCK_PRESCALER_1
 #define DIMMER1
-#define DIMMER2
 #define DIMMER3
 #include "MyMySensors/BounceSwitch.h"
 BounceSwitch sw1(A2, MyDuration(50), true);
-BounceSwitch sw2(A2, MyDuration(50), true);
 BounceSwitch sw3(APDS9930_INT, MyDuration(50), true);
 #include "MyMySensors/Dimmer.h"
-CwWwDimmer dim1(3, 5, true, 10, {1, 1});
-CwWwDimmer dim2(9, 10, true, 10, {1, 1});
+CwWwDimmerN<2> dim1({3, 9}, {5, 10}, true, 10, {1, 1});
 SimpleDimmer dim3(6, true, 10, {0, 0});
 #endif
 
