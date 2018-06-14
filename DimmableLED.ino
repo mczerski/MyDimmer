@@ -7,7 +7,7 @@
 #define LIVINGROOM
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "2"
-#define SKETCH_MINOR_VER "1"
+#define SKETCH_MINOR_VER "2"
 
 // Enable and select radio type attached
 //#define MY_RADIO_NRF24
@@ -64,6 +64,7 @@
 #define MY_OTA_FIRMWARE_FEATURE
 #define MY_TRANSPORT_WAIT_READY_MS 1
 
+#include <avr/wdt.h>
 #include <MySensors.h>
 #include "MyMySensors/MyMySensorsBase.h"
 
@@ -127,7 +128,7 @@ Relay rel3(5);
 #define DIMMER3
 #include "MyMySensors/BounceSwitch.h"
 BounceSwitch sw1(A2, MyDuration(50), true);
-BounceSwitch sw3(APDS9930_INT, MyDuration(50), true);
+APDS9930Switch sw3(myApds, 0);
 #include "MyMySensors/Dimmer.h"
 CwWwDimmerN<2> dim1({3, 9}, {5, 10}, true, 10, {1, 1});
 SimpleDimmer dim3(6, true, 10, {0, 0});
@@ -263,6 +264,8 @@ void presentation() {
 
   // Register the LED Dimmable Light with the gateway
   MyMySensorsBase::present();
+
+  wdt_enable(WDTO_8S);
 }
 
 /***
@@ -270,6 +273,7 @@ void presentation() {
  */
 void loop()
 {
+  wdt_reset();
   #ifdef USE_APDS9930
   myApds.update();
   #endif
