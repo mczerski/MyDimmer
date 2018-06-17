@@ -7,7 +7,7 @@
 #define LIVINGROOM
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "2"
-#define SKETCH_MINOR_VER "2"
+#define SKETCH_MINOR_VER "3"
 
 // Enable and select radio type attached
 //#define MY_RADIO_NRF24
