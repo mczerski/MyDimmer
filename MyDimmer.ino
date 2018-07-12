@@ -2,7 +2,7 @@
 //#define MY_DEBUG
 //#define MY_DEBUG_VERBOSE_RF24
 //#define MY_DEBUG_VERBOSE_RFM69
-//#define MY_MY_DEBUG
+//#define MYS_TOOLKIT_DEBUG
 
 #define LIVINGROOM
 #define SKETCH_NAME "Dimmer"
@@ -67,11 +67,17 @@
 #include <avr/wdt.h>
 #include <MySensors.h>
 #include <MySensorsToolkit.h>
+#include "BounceSwitch.h"
+#include "AnalogBounceSwitch.h"
+#include "APDS9930Switch.h"
+#include "DS18B20RequestableValue.h"
+#include <MySensorsToolkit/Actuator/DimmerActuator.h>
+#include <MySensorsToolkit/Actuator/RelayActuator.h>
+#include <MySensorsToolkit/Actuator/SceneController.h>
 
 using namespace mys_toolkit;
 
 #ifdef USE_APDS9930
-#include <MySensorsToolkit/Actuator/APDS9930Switch.h>
 MyAPDS9930 myApds(APDS9930_INT, APDS9930_NUM);
 #endif
 
@@ -80,14 +86,11 @@ MyAPDS9930 myApds(APDS9930_INT, APDS9930_NUM);
 #define DIMMER1
 #define DIMMER2
 #define RELAY3
-#include <MySensorsToolkit/Actuator/BounceSwitch.h>
 BounceSwitch sw1(A1, Duration(50), true);
 BounceSwitch sw2(A2, Duration(50), true);
 BounceSwitch sw3(A3, Duration(50), true);
-#include <MySensorsToolkit/Actuator/Dimmer.h>
 CwWwDimmer dim1(9, 10, false, 10, {1, 1});
 SimpleDimmer dim2(3, false, 10, {1, 1});
-#include <MySensorsToolkit/Actuator/Relay.h>
 Relay rel3(5);
 #endif
 
@@ -95,10 +98,8 @@ Relay rel3(5);
 #define CLOCK_PRESCALER CLOCK_PRESCALER_1
 #define DIMMER1
 #define DIMMER3
-#include <MySensorsToolkit/Actuator/BounceSwitch.h>
 BounceSwitch sw1(A2, Duration(50), true);
 APDS9930Switch sw3(myApds, 0);
-#include <MySensorsToolkit/Actuator/Dimmer.h>
 CwWwDimmerN<2> dim1({3, 9}, {5, 10}, true, 10, {1, 1});
 SimpleDimmer dim3(6, true, 10, {0, 0});
 #endif
@@ -110,11 +111,9 @@ SimpleDimmer dim3(6, true, 10, {0, 0});
 #define SCENE2_ENABLE_SHORT true
 #define SCENE3
 #define SCENE3_ENABLE_SHORT true
-#include <MySensorsToolkit/Actuator/BounceSwitch.h>
 BounceSwitch sw1(A3, Duration(50), true);
 BounceSwitch sw2(A2, Duration(50), true);
 BounceSwitch sw3(A1, Duration(50), true);
-#include <MySensorsToolkit/Actuator/Dimmer.h>
 SimpleDimmer dim1(10, false, 10, {1, 1});
 #endif
 
@@ -125,11 +124,9 @@ SimpleDimmer dim1(10, false, 10, {1, 1});
 #define SCENE2_ENABLE_SHORT true
 #define SCENE3
 #define SCENE3_ENABLE_SHORT true
-#include <MySensorsToolkit/Actuator/BounceSwitch.h>
 BounceSwitch sw1(A3, Duration(50), true);
 BounceSwitch sw2(A2, Duration(50), true);
 BounceSwitch sw3(A1, Duration(50), true);
-#include <MySensorsToolkit/Actuator/Dimmer.h>
 SimpleDimmer dim1(10, false, 10, {1, 1});
 #endif
 
@@ -143,7 +140,6 @@ SimpleDimmer dim1(10, false, 10, {1, 1});
 #define SCENE2_ENABLE_SHORT false
 APDS9930Switch sw1(myApds, 0);
 APDS9930Switch sw2(myApds, 1);
-#include <MySensorsToolkit/Actuator/Dimmer.h>
 SimpleDimmer dim1(3, true, 10, {0, 0});
 SimpleDimmer dim2(5, true, 10, {0, 0});
 #endif
@@ -158,7 +154,6 @@ SimpleDimmer dim2(5, true, 10, {0, 0});
 #define SCENE3_ENABLE_SHORT true
 #define SCENE4
 #define SCENE4_ENABLE_SHORT true
-#include <MySensorsToolkit/Actuator/BounceSwitch.h>
 BounceSwitch sw1(5, Duration(50), true);
 BounceSwitch sw2(6, Duration(50), true);
 BounceSwitch sw3(A5, Duration(50), true);
@@ -168,55 +163,42 @@ BounceSwitch sw4(A4, Duration(50), true);
 #ifdef TEST
 #define CLOCK_PRESCALER CLOCK_PRESCALER_1
 #define RELAY1
-#include <MySensorsToolkit/Actuator/BounceSwitch.h>
 BounceSwitch sw1(3, Duration(50), true);
-#include <MySensorsToolkit/Actuator/Relay.h>
 Relay rel1(A1);
 #endif
 
 #ifdef DIMMER1
-#include <MySensorsToolkit/Actuator/DimmerActuator.h>
 DimmerActuator dimmer1(0, dim1, sw1);
 #endif
 #ifdef DIMMER2
-#include <MySensorsToolkit/Actuator/DimmerActuator.h>
 DimmerActuator dimmer2(1, dim2, sw2);
 #endif
 #ifdef DIMMER3
-#include <MySensorsToolkit/Actuator/DimmerActuator.h>
 DimmerActuator dimmer3(2, dim3, sw3);
 #endif
 #ifdef RELAY1
-#include <MySensorsToolkit/Actuator/RelayActuator.h>
 RelayActuator relay1(0, rel1, sw1);
 #endif
 #ifdef RELAY2
-#include <MySensorsToolkit/Actuator/RelayActuator.h>
 RelayActuator relay2(1, rel2, sw2);
 #endif
 #ifdef RELAY3
-#include <MySensorsToolkit/Actuator/RelayActuator.h>
 RelayActuator relay3(2, rel3, sw3);
 #endif
 #ifdef SCENE1
-#include <MySensorsToolkit/Actuator/SceneController.h>
 SceneController scene1(3, sw1, SCENE1_ENABLE_SHORT);
 #endif
 #ifdef SCENE2
-#include <MySensorsToolkit/Actuator/SceneController.h>
 SceneController scene2(4, sw2, SCENE2_ENABLE_SHORT);
 #endif
 #ifdef SCENE3
-#include <MySensorsToolkit/Actuator/SceneController.h>
 SceneController scene3(5, sw3, SCENE3_ENABLE_SHORT);
 #endif
 #ifdef SCENE4
-#include <MySensorsToolkit/Actuator/SceneController.h>
 SceneController scene4(7, sw4, SCENE4_ENABLE_SHORT);
 #endif
 
 #ifdef TEMP_PIN
-#include <MySensorsToolkit/Actuator/DS18B20RequestableValue.h>
 DS18B20RequestableValue tempSensor(TEMP_PIN, 6, Duration(60000));
 #endif
 
