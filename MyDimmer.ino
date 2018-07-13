@@ -4,7 +4,7 @@
 //#define MY_DEBUG_VERBOSE_RFM69
 //#define MYS_TOOLKIT_DEBUG
 
-#define LIVINGROOM
+#define TEST
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "2"
 #define SKETCH_MINOR_VER "3"
@@ -89,8 +89,8 @@ MyAPDS9930 myApds(APDS9930_INT, APDS9930_NUM);
 BounceSwitch sw1(A1, Duration(50), true);
 BounceSwitch sw2(A2, Duration(50), true);
 BounceSwitch sw3(A3, Duration(50), true);
-CwWwDimmer dim1(9, 10, false, 10, {1, 1});
-SimpleDimmer dim2(3, false, 10, {1, 1});
+CwWwDimmer dim1(9, 10, false, 10, {.slowDimming=1, .fullBrightness=1});
+SimpleDimmer dim2(3, false, 10, {.slowDimming=1, .fullBrightness=1});
 Relay rel3(5);
 #endif
 
@@ -100,8 +100,8 @@ Relay rel3(5);
 #define DIMMER3
 BounceSwitch sw1(A2, Duration(50), true);
 APDS9930Switch sw3(myApds, 0);
-CwWwDimmerN<2> dim1({3, 9}, {5, 10}, true, 10, {1, 1});
-SimpleDimmer dim3(6, true, 10, {0, 0});
+CwWwDimmerN<2> dim1({3, 9}, {5, 10}, true, 10, {.slowDimming=1, .fullBrightness=1});
+SimpleDimmer dim3(6, true, 10, {.slowDimming=0, .fullBrightness=0});
 #endif
 
 #ifdef BATHROOM1
@@ -114,7 +114,7 @@ SimpleDimmer dim3(6, true, 10, {0, 0});
 BounceSwitch sw1(A3, Duration(50), true);
 BounceSwitch sw2(A2, Duration(50), true);
 BounceSwitch sw3(A1, Duration(50), true);
-SimpleDimmer dim1(10, false, 10, {1, 1});
+SimpleDimmer dim1(10, false, 10, {.slowDimming=1, .fullBrightness=1});
 #endif
 
 #ifdef BATHROOM2
@@ -127,7 +127,7 @@ SimpleDimmer dim1(10, false, 10, {1, 1});
 BounceSwitch sw1(A3, Duration(50), true);
 BounceSwitch sw2(A2, Duration(50), true);
 BounceSwitch sw3(A1, Duration(50), true);
-SimpleDimmer dim1(10, false, 10, {1, 1});
+SimpleDimmer dim1(10, false, 10, {.slowDimming=1, .fullBrightness=1});
 #endif
 
 #ifdef BEDROOM
@@ -140,8 +140,8 @@ SimpleDimmer dim1(10, false, 10, {1, 1});
 #define SCENE2_ENABLE_SHORT false
 APDS9930Switch sw1(myApds, 0);
 APDS9930Switch sw2(myApds, 1);
-SimpleDimmer dim1(3, true, 10, {0, 0});
-SimpleDimmer dim2(5, true, 10, {0, 0});
+SimpleDimmer dim1(3, true, 10, {.slowDimming=0, .fullBrightness=0});
+SimpleDimmer dim2(5, true, 10, {.slowDimming=0, .fullBrightness=0});
 #endif
 
 #ifdef LIVINGROOM_SCENE
