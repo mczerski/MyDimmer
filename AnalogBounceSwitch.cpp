@@ -8,8 +8,7 @@ bool AnalogBounceSwitch::doUpdate_()
   return !button_.isPressed(0);
 }
 
-AnalogBounceSwitch::AnalogBounceSwitch(uint8_t pin, Duration interval_ms,
-                                       bool activeLow = false)
+AnalogBounceSwitch::AnalogBounceSwitch(uint8_t pin, Duration interval_ms, bool activeLow)
   : Switch(activeLow), button_(pin, 1, {0}, interval_ms.getMilis())
 {
   button_.update();
