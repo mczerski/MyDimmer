@@ -4,10 +4,10 @@
 //#define MY_DEBUG_VERBOSE_RFM69
 //#define MYS_TOOLKIT_DEBUG
 
-#define TEST
+#define BEDROOM1
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "2"
-#define SKETCH_MINOR_VER "3"
+#define SKETCH_MINOR_VER "4"
 
 // Enable and select radio type attached
 #define MY_RADIO_RFM69
@@ -18,11 +18,13 @@
 
 #ifdef KITCHEN
 #define MY_NODE_ID 8
+#define SKETCH_SUBNAME "Kitchen"
 #define TEMP_PIN A4
 #endif
 
 #ifdef LIVINGROOM
 #define MY_NODE_ID 6
+#define SKETCH_SUBNAME "Livingroom"
 #define USE_APDS9930
 #define APDS9930_INT A3
 #define APDS9930_NUM 1
@@ -31,18 +33,21 @@
 
 #ifdef BATHROOM1
 #define MY_NODE_ID 10
+#define SKETCH_SUBNAME "LargeBathroom"
 #define TEMP_PIN A4
 #define APDS9930_NUM 1
 #endif
 
 #ifdef BATHROOM2
 #define MY_NODE_ID 9
+#define SKETCH_SUBNAME "SmallBathroom"
 #define TEMP_PIN A4
 #define APDS9930_NUM 1
 #endif
 
-#ifdef BEDROOM
+#ifdef BEDROOM1
 #define MY_NODE_ID 11
+#define SKETCH_SUBNAME "LargeBedroom"
 #define USE_APDS9930
 #define APDS9930_INT A3
 #define APDS9930_NUM 2
@@ -53,12 +58,18 @@
 #define MY_NODE_ID 12
 #undef MY_RFM69_CS_PIN
 #define MY_RFM69_CS_PIN 10
+#undef SKETCH_NAME
+#define SKETCH_NAME "Scene"
+#define SKETCH_SUBNAME "Livingroom"
 #endif
 
 #ifdef TEST
 #define MY_NODE_ID 13
 #undef MY_RFM69_CS_PIN
 #define MY_RFM69_CS_PIN 10
+#undef SKETCH_NAME
+#define SKETCH_NAME "Test"
+#define SKETCH_SUBNAME ""
 #endif
 
 #define MY_OTA_FIRMWARE_FEATURE
@@ -130,7 +141,7 @@ BounceSwitch sw3(A1, Duration(50), true);
 SimpleDimmer dim1(10, false, 10, {.slowDimming=1, .fullBrightness=1});
 #endif
 
-#ifdef BEDROOM
+#ifdef BEDROOM1
 #define CLOCK_PRESCALER CLOCK_PRESCALER_1
 #define DIMMER1
 #define DIMMER2
@@ -217,7 +228,7 @@ void setup()
 
 void presentation() {
   // Send the sketch version information to the gateway and Controller
-  sendSketchInfo(SKETCH_NAME, SKETCH_MAJOR_VER "." SKETCH_MINOR_VER);
+  sendSketchInfo(SKETCH_NAME "-" SKETCH_SUBNAME, SKETCH_MAJOR_VER "." SKETCH_MINOR_VER);
 
   // Register the LED Dimmable Light with the gateway
   ActuatorBase::present();
