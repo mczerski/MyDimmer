@@ -1,5 +1,5 @@
 // Enable debug prints to serial monitor
-#define MY_DEBUG
+//#define MY_DEBUG
 //#define MY_DEBUG_VERBOSE_RF24
 //#define MY_DEBUG_VERBOSE_RFM69
 //#define MYS_TOOLKIT_DEBUG
@@ -82,6 +82,7 @@
 #include "APDS9930Switch.h"
 #include "DS18B20RequestableValue.h"
 #include "MiLightRelay.h"
+#include "MiLightDimmer.h"
 #include <MySensorsToolkit/Actuator/DimmerActuator.h>
 #include <MySensorsToolkit/Actuator/RelayActuator.h>
 #include <MySensorsToolkit/Actuator/SceneController.h>
@@ -173,13 +174,15 @@ BounceSwitch sw4(A4, Duration(50), true);
 
 #ifdef TEST
 #define CLOCK_PRESCALER CLOCK_PRESCALER_1
-#define RELAY1
+//#define RELAY1
+#define DIMMER1
 BounceSwitch sw1(3, Duration(50), true);
 #define NRF24_CE_PIN A5
 #define NRF24_CSN_PIN A4
 RF24 nrf24Radio(NRF24_CE_PIN, NRF24_CSN_PIN);
 PL1167_nRF24 pl1167(nrf24Radio);
-MiLightRelay rel1(pl1167, 0xF2EA, 4);
+//MiLightRelay rel1(pl1167, 0xF2EA, 4);
+MiLightDimmer dim1(pl1167, 0xF2EA, 4, false, 10, {.slowDimming=1, .fullBrightness=1});
 #endif
 
 #ifdef DIMMER1
@@ -228,8 +231,6 @@ void setup()
   #ifdef USE_APDS9930
   myApds.init();
   #endif
-  if (rel1.begin() != 0)
-    Serial.println("MiLight init failed");
 }
 
 void presentation() {

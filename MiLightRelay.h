@@ -12,7 +12,7 @@ class MiLightRelay : public Relay
 
 public:
   MiLightRelay(AbstractPL1167 &pl1167, uint16_t deviceId, uint8_t groupId);
-  int begin() {return bulb_.begin();}
+  void begin() override;
 };
 
 } //mys_toolkit
