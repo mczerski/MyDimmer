@@ -1,10 +1,10 @@
 // Enable debug prints to serial monitor
-//#define MY_DEBUG
+#define MY_DEBUG
 //#define MY_DEBUG_VERBOSE_RF24
 //#define MY_DEBUG_VERBOSE_RFM69
 //#define MYS_TOOLKIT_DEBUG
 
-#define BEDROOM1
+#define TEST
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "2"
 #define SKETCH_MINOR_VER "4"
@@ -15,6 +15,8 @@
 #define MY_RFM69_NEW_DRIVER
 #define MY_RFM69_ATC_MODE_DISABLED
 #define MY_RFM69_TX_POWER_DBM 0
+#define MY_OTA_FIRMWARE_FEATURE
+#define MY_TRANSPORT_WAIT_READY_MS 1
 
 #ifdef KITCHEN
 #define MY_NODE_ID 8
@@ -72,9 +74,6 @@
 #define SKETCH_SUBNAME ""
 #endif
 
-#define MY_OTA_FIRMWARE_FEATURE
-#define MY_TRANSPORT_WAIT_READY_MS 1
-
 #include <avr/wdt.h>
 #include <MySensors.h>
 #include <MySensorsToolkit.h>
@@ -82,6 +81,7 @@
 #include "AnalogBounceSwitch.h"
 #include "APDS9930Switch.h"
 #include "DS18B20RequestableValue.h"
+#include "MiLightRelay.h"
 #include <MySensorsToolkit/Actuator/DimmerActuator.h>
 #include <MySensorsToolkit/Actuator/RelayActuator.h>
 #include <MySensorsToolkit/Actuator/SceneController.h>
@@ -175,7 +175,11 @@ BounceSwitch sw4(A4, Duration(50), true);
 #define CLOCK_PRESCALER CLOCK_PRESCALER_1
 #define RELAY1
 BounceSwitch sw1(3, Duration(50), true);
-Relay rel1(A1);
+#define NRF24_CE_PIN A5
+#define NRF24_CSN_PIN A4
+RF24 nrf24Radio(NRF24_CE_PIN, NRF24_CSN_PIN);
+PL1167_nRF24 pl1167(nrf24Radio);
+MiLightRelay rel1(pl1167, 0xF2EA, 4);
 #endif
 
 #ifdef DIMMER1
@@ -224,6 +228,8 @@ void setup()
   #ifdef USE_APDS9930
   myApds.init();
   #endif
+  if (rel1.begin() != 0)
+    Serial.println("MiLight init failed");
 }
 
 void presentation() {
