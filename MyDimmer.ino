@@ -4,10 +4,10 @@
 //#define MY_DEBUG_VERBOSE_RFM69
 //#define MYS_TOOLKIT_DEBUG
 
-#define TEST
+#define KITCHEN
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "2"
-#define SKETCH_MINOR_VER "4"
+#define SKETCH_MINOR_VER "5"
 
 // Enable and select radio type attached
 #define MY_RADIO_RFM69
@@ -97,13 +97,17 @@ MyAPDS9930 myApds(APDS9930_INT, APDS9930_NUM);
 #define CLOCK_PRESCALER CLOCK_PRESCALER_2
 #define DIMMER1
 #define DIMMER2
-#define RELAY3
+#define DIMMER3
 BounceSwitch sw1(A1, Duration(50), true);
 BounceSwitch sw2(A2, Duration(50), true);
 BounceSwitch sw3(A3, Duration(50), true);
 CwWwDimmer dim1(9, 10, false, 10, {.slowDimming=1, .fullBrightness=1});
 SimpleDimmer dim2(3, false, 10, {.slowDimming=1, .fullBrightness=1});
-Relay rel3(5);
+#define NRF24_CE_PIN 7
+#define NRF24_CSN_PIN 6
+RF24 nrf24Radio(NRF24_CE_PIN, NRF24_CSN_PIN);
+PL1167_nRF24 pl1167(nrf24Radio);
+MiLightDimmer dim3(pl1167, 0xF2EA, 4, false, 10, {.slowDimming=1, .fullBrightness=1});
 #endif
 
 #ifdef LIVINGROOM
@@ -258,4 +262,3 @@ void loop()
 void receive(const MyMessage &message) {
   ActuatorBase::receive(message);
 }
-

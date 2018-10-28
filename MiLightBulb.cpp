@@ -4,20 +4,20 @@ namespace mys_toolkit {
 
 void CctMiLightBulb::_sendCommand(uint8_t command)
 {
-  uint8_t packet[7] = {0x5A, _deviceId >> 8, _deviceId, _groupId,
+  uint8_t packet[7] = {0x5A, uint8_t(_deviceId >> 8), uint8_t(_deviceId), _groupId,
                        command, _sequenceId++, 0};
   uint8_t checksum = sizeof(packet);
   for (size_t i=0; i<sizeof(packet)-1; i++)
       checksum += packet[i];
   packet[sizeof(packet)-1] = checksum;
   _radio.write(packet, sizeof(packet));
-  for (size_t i=0; i<_repetitions-1; i++) {
+  for (size_t i=1; i<_repetitions; i++) {
     delay(1);
     _radio.resend();
   }
 }
 
-CctMiLightBulb::CctMiLightBulb(AbstractPL1167 &pl1167, uint16_t deviceId, uint8_t groupId, uint8_t repetitions=5)
+CctMiLightBulb::CctMiLightBulb(AbstractPL1167 &pl1167, uint16_t deviceId, uint8_t groupId, uint8_t repetitions)
   :  _radio(pl1167, {4, 39, 74, 0x050A, 0x55AA}), _deviceId(deviceId), _groupId(groupId), _repetitions(repetitions)
 {}
 
