@@ -12,7 +12,6 @@ void CctMiLightBulb::_sendCommand(uint8_t command)
   packet[sizeof(packet)-1] = checksum;
   _radio.write(packet, sizeof(packet));
   for (size_t i=1; i<_repetitions; i++) {
-    delay(1);
     _radio.resend();
   }
 }
