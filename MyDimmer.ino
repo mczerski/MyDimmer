@@ -57,18 +57,19 @@
 #endif
 
 #ifdef BEDROOM1
-#define MY_NODE_ID 34
-#undef MY_RFM69_CS_PIN
-#define MY_RFM69_CS_PIN 10
-#define SKETCH_SUBNAME "LargeBedroom"
-#endif
-
-#ifdef BEDROOM2
 #define MY_NODE_ID 35
 #undef MY_RFM69_CS_PIN
 #define MY_RFM69_CS_PIN 10
-#define SKETCH_SUBNAME "SmallBedroom"
+#define MY_REPEATER_FEATURE
+#define SKETCH_SUBNAME "LargeBedroom"
 #define MY_IS_RFM69HW
+#endif
+
+#ifdef BEDROOM2
+#define MY_NODE_ID 34
+#undef MY_RFM69_CS_PIN
+#define MY_RFM69_CS_PIN 10
+#define SKETCH_SUBNAME "SmallBedroom"
 #endif
 
 #ifdef LIVINGROOM_SCENE
