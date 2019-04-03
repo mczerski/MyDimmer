@@ -4,7 +4,7 @@
 //#define MY_DEBUG_VERBOSE_RFM69
 //#define MYS_TOOLKIT_DEBUG
 
-#define KITCHEN
+#define BEDROOM1
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "2"
 #define SKETCH_MINOR_VER "6"
@@ -47,13 +47,28 @@
 #define APDS9930_NUM 1
 #endif
 
-#ifdef BEDROOM1
+#ifdef BEDROOM1_SHELF
 #define MY_NODE_ID 11
-#define SKETCH_SUBNAME "LargeBedroom"
+#define SKETCH_SUBNAME "LargeBedroomShelf"
 #define USE_APDS9930
 #define APDS9930_INT A3
 #define APDS9930_NUM 2
 #define TEMP_PIN A1
+#endif
+
+#ifdef BEDROOM1
+#define MY_NODE_ID 34
+#undef MY_RFM69_CS_PIN
+#define MY_RFM69_CS_PIN 10
+#define SKETCH_SUBNAME "LargeBedroom"
+#endif
+
+#ifdef BEDROOM2
+#define MY_NODE_ID 35
+#undef MY_RFM69_CS_PIN
+#define MY_RFM69_CS_PIN 10
+#define SKETCH_SUBNAME "SmallBedroom"
+#define MY_IS_RFM69HW
 #endif
 
 #ifdef LIVINGROOM_SCENE
@@ -146,7 +161,7 @@ BounceSwitch sw3(A1, Duration(50), true);
 SimpleDimmer dim1(10, false, 10, {.slowDimming=1, .fullBrightness=1});
 #endif
 
-#ifdef BEDROOM1
+#ifdef BEDROOM1_SHELF
 #define CLOCK_PRESCALER CLOCK_PRESCALER_1
 #define DIMMER1
 #define DIMMER2
@@ -158,6 +173,26 @@ APDS9930Switch sw1(myApds, 0);
 APDS9930Switch sw2(myApds, 1);
 SimpleDimmer dim1(3, true, 10, {.slowDimming=0, .fullBrightness=0});
 SimpleDimmer dim2(5, true, 10, {.slowDimming=0, .fullBrightness=0});
+#endif
+
+#ifdef BEDROOM1
+#define CLOCK_PRESCALER CLOCK_PRESCALER_1
+#define DIMMER1
+#define SCENE2
+#define SCENE2_ENABLE_SHORT true
+BounceSwitch sw1(A0, Duration(50), true);
+BounceSwitch sw2(3, Duration(50), true);
+SimpleDimmer dim1(5, true, 10, {.slowDimming=1, .fullBrightness=1});
+#endif
+
+#ifdef BEDROOM2
+#define CLOCK_PRESCALER CLOCK_PRESCALER_1
+#define DIMMER1
+#define SCENE2
+#define SCENE2_ENABLE_SHORT true
+BounceSwitch sw1(A0, Duration(50), true);
+BounceSwitch sw2(3, Duration(50), true);
+SimpleDimmer dim1(5, true, 10, {.slowDimming=1, .fullBrightness=1});
 #endif
 
 #ifdef LIVINGROOM_SCENE
@@ -179,14 +214,14 @@ BounceSwitch sw4(A4, Duration(50), true);
 #ifdef TEST
 #define CLOCK_PRESCALER CLOCK_PRESCALER_1
 //#define RELAY1
-#define DIMMER1
-BounceSwitch sw1(3, Duration(50), true);
-#define NRF24_CE_PIN A5
-#define NRF24_CSN_PIN A4
-RF24 nrf24Radio(NRF24_CE_PIN, NRF24_CSN_PIN);
-PL1167_nRF24 pl1167(nrf24Radio);
+//#define DIMMER1
+//BounceSwitch sw1(3, Duration(50), true);
+//#define NRF24_CE_PIN A5
+//#define NRF24_CSN_PIN A4
+//RF24 nrf24Radio(NRF24_CE_PIN, NRF24_CSN_PIN);
+//PL1167_nRF24 pl1167(nrf24Radio);
 //MiLightRelay rel1(pl1167, 0xF2EA, 4);
-MiLightDimmer dim1(pl1167, 0xF2EA, 4, false, 10, {.slowDimming=1, .fullBrightness=1});
+//MiLightDimmer dim1(pl1167, 0xF2EA, 4, false, 10, {.slowDimming=1, .fullBrightness=1});
 #endif
 
 #ifdef DIMMER1
