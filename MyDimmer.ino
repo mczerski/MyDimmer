@@ -4,7 +4,7 @@
 //#define MY_DEBUG_VERBOSE_RFM69
 //#define MYS_TOOLKIT_DEBUG
 
-#define BEDROOM1
+#define TEST
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "2"
 #define SKETCH_MINOR_VER "6"
@@ -14,7 +14,7 @@
 #define MY_RFM69_CS_PIN 4
 #define MY_RFM69_NEW_DRIVER
 #define MY_RFM69_ATC_MODE_DISABLED
-#define MY_RFM69_TX_POWER_DBM 0
+#define MY_RFM69_TX_POWER_DBM 10
 #define MY_OTA_FIRMWARE_FEATURE
 #define MY_TRANSPORT_WAIT_READY_MS 1
 
@@ -85,6 +85,8 @@
 #define MY_NODE_ID 13
 #undef MY_RFM69_CS_PIN
 #define MY_RFM69_CS_PIN 10
+#define MY_RFM69_IRQ_PIN 3
+#define MY_RFM69HW
 #undef SKETCH_NAME
 #define SKETCH_NAME "Test"
 #define SKETCH_SUBNAME ""
@@ -216,7 +218,9 @@ BounceSwitch sw4(A4, Duration(50), true);
 #define CLOCK_PRESCALER CLOCK_PRESCALER_1
 //#define RELAY1
 //#define DIMMER1
-//BounceSwitch sw1(3, Duration(50), true);
+#define SCENE1
+#define SCENE1_ENABLE_SHORT true
+BounceSwitch sw1(3, Duration(50), true);
 //#define NRF24_CE_PIN A5
 //#define NRF24_CSN_PIN A4
 //RF24 nrf24Radio(NRF24_CE_PIN, NRF24_CSN_PIN);
