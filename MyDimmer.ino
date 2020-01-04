@@ -1,7 +1,5 @@
 // Enable debug prints to serial monitor
 //#define MY_DEBUG
-//#define MY_DEBUG_VERBOSE_RF24
-//#define MY_DEBUG_VERBOSE_RFM69
 //#define MYS_TOOLKIT_DEBUG
 
 #define TEST
@@ -83,10 +81,12 @@
 
 #ifdef TEST
 #define MY_NODE_ID 13
+#define MY_DEBUG
+#define MY_DEBUG_VERBOSE_RFM69
+#define MY_DEBUG_VERBOSE_TRANSPORT
+#define MY_SIGNAL_REPORT_ENABLED
 #undef MY_RFM69_CS_PIN
 #define MY_RFM69_CS_PIN 10
-#define MY_RFM69_IRQ_PIN 3
-#define MY_RFM69HW
 #undef SKETCH_NAME
 #define SKETCH_NAME "Test"
 #define SKETCH_SUBNAME ""
@@ -216,17 +216,9 @@ BounceSwitch sw4(A4, Duration(50), true);
 
 #ifdef TEST
 #define CLOCK_PRESCALER CLOCK_PRESCALER_1
-//#define RELAY1
-//#define DIMMER1
 #define SCENE1
 #define SCENE1_ENABLE_SHORT true
 BounceSwitch sw1(3, Duration(50), true);
-//#define NRF24_CE_PIN A5
-//#define NRF24_CSN_PIN A4
-//RF24 nrf24Radio(NRF24_CE_PIN, NRF24_CSN_PIN);
-//PL1167_nRF24 pl1167(nrf24Radio);
-//MiLightRelay rel1(pl1167, 0xF2EA, 4);
-//MiLightDimmer dim1(pl1167, 0xF2EA, 4, false, 10, {.slowDimming=1, .fullBrightness=1});
 #endif
 
 #ifdef DIMMER1
