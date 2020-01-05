@@ -2,7 +2,7 @@
 //#define MY_DEBUG
 //#define MYS_TOOLKIT_DEBUG
 
-#define TEST
+#define KITCHEN
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "2"
 #define SKETCH_MINOR_VER "6"
@@ -58,7 +58,7 @@
 #define MY_NODE_ID 35
 #undef MY_RFM69_CS_PIN
 #define MY_RFM69_CS_PIN 10
-#define MY_REPEATER_FEATURE
+//#define MY_REPEATER_FEATURE
 #define SKETCH_SUBNAME "LargeBedroom"
 #define MY_IS_RFM69HW
 #endif
@@ -112,7 +112,7 @@ MyAPDS9930 myApds(APDS9930_INT, APDS9930_NUM);
 #endif
 
 #ifdef KITCHEN
-#define CLOCK_PRESCALER CLOCK_PRESCALER_2
+#define CLOCK_PRESCALER CLOCK_PRESCALER_1
 #define DIMMER1
 #define DIMMER2
 #define DIMMER3
