@@ -2,10 +2,10 @@
 //#define MY_DEBUG
 //#define MYS_TOOLKIT_DEBUG
 
-#define KITCHEN
+#define BEDROOM1_SHELF
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "2"
-#define SKETCH_MINOR_VER "6"
+#define SKETCH_MINOR_VER "7"
 
 // Enable and select radio type attached
 #define MY_RADIO_RFM69
