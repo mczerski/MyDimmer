@@ -1,5 +1,9 @@
 #include "MiLightDimmer.h"
 
+#ifdef MYS_TOOLKIT_DEBUG
+extern HardwareSerial MYS_TOOLKIT_SERIAL;
+#endif
+
 namespace mys_toolkit {
 
 void MiLightDimmer::setLevel_(uint8_t level)
@@ -46,8 +50,11 @@ MiLightDimmer::MiLightDimmer(AbstractPL1167 &pl1167, uint16_t deviceId, uint8_t 
 
 void MiLightDimmer::begin()
 {
-  if (bulb_.begin() != 0)
-    Serial.println("MiLightRelay init failed");
+  if (bulb_.begin() != 0) {
+    #ifdef MYS_TOOLKIT_DEBUG
+    MYS_TOOLKIT_SERIAL.println("MiLightRelay init failed");
+    #endif
+  }
   for (size_t i=0; i<5; i++)
     bulb_.setOn();
   for (size_t i=0; i<10; i++) {

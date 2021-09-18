@@ -1,5 +1,9 @@
 #include "APDS9930Switch.h"
 
+#ifdef MYS_TOOLKIT_DEBUG
+extern HardwareSerial MYS_TOOLKIT_SERIAL;
+#endif
+
 namespace mys_toolkit {
 
 void MyAPDS9930::pcaSelect_(uint8_t i)
@@ -30,38 +34,38 @@ void MyAPDS9930::init_(uint8_t i)
   pcaSelect_(i);
   bool status = apds_[i].init();
   #ifdef MYS_TOOLKIT_DEBUG
-  Serial.print(F("APDS-9930 initializing sensor #"));
-  Serial.println(i);
+  MYS_TOOLKIT_SERIAL.print(F("APDS-9930 initializing sensor #"));
+  MYS_TOOLKIT_SERIAL.println(i);
   if (status) {
-    Serial.println(F("APDS-9930 initialization complete"));
+    MYS_TOOLKIT_SERIAL.println(F("APDS-9930 initialization complete"));
   } else {
-    Serial.println(F("Something went wrong during APDS-9930 init!"));
+    MYS_TOOLKIT_SERIAL.println(F("Something went wrong during APDS-9930 init!"));
   }
   #endif
   status = apds_[i].enableProximitySensor(true);
   #ifdef MYS_TOOLKIT_DEBUG
   if (status) {
-    Serial.println(F("Proximity sensor is now running"));
+    MYS_TOOLKIT_SERIAL.println(F("Proximity sensor is now running"));
   } else {
-    Serial.println(F("Something went wrong during sensor init!"));
+    MYS_TOOLKIT_SERIAL.println(F("Something went wrong during sensor init!"));
   }
   #endif
   status = apds_[i].setProximityGain(PGAIN_1X);
   #ifdef MYS_TOOLKIT_DEBUG
   if (!status) {
-    Serial.println(F("Something went wrong trying to set PGAIN"));
+    MYS_TOOLKIT_SERIAL.println(F("Something went wrong trying to set PGAIN"));
   }
   #endif
   status = apds_[i].setProximityIntLowThreshold(PROX_INT_LOW);
   #ifdef MYS_TOOLKIT_DEBUG
   if (!status) {
-    Serial.println(F("Error writing low threshold"));
+    MYS_TOOLKIT_SERIAL.println(F("Error writing low threshold"));
   }
   #endif
   status = apds_[i].setProximityIntHighThreshold(PROX_INT_HIGH);
   #ifdef MYS_TOOLKIT_DEBUG
   if (!status) {
-    Serial.println(F("Error writing high threshold"));
+    MYS_TOOLKIT_SERIAL.println(F("Error writing high threshold"));
   }
   #endif
   (void)status;
@@ -74,23 +78,23 @@ bool MyAPDS9930::update_(uint8_t i)
     return false;
   uint16_t proximity_data = 0;
   #ifdef MYS_TOOLKIT_DEBUG
-  Serial.print("Reading sensor #");
-  Serial.println(i);
+  MYS_TOOLKIT_SERIAL.print("Reading sensor #");
+  MYS_TOOLKIT_SERIAL.println(i);
   #endif
   if (!apds_[i].readProximity(proximity_data)) {
     #ifdef MYS_TOOLKIT_DEBUG
-    Serial.println("Error reading proximity value");
+    MYS_TOOLKIT_SERIAL.println("Error reading proximity value");
     #endif
   } else {
     #ifdef MYS_TOOLKIT_DEBUG
-    Serial.print("Proximity detected! Level: ");
-    Serial.println(proximity_data);
+    MYS_TOOLKIT_SERIAL.print("Proximity detected! Level: ");
+    MYS_TOOLKIT_SERIAL.println(proximity_data);
     #endif
   }
   if (proximity_data < PROX_INT_HIGH) {
     if (!apds_[i].clearProximityInt()) {
       #ifdef MYS_TOOLKIT_DEBUG
-      Serial.println("Error clearing interrupt");
+      MYS_TOOLKIT_SERIAL.println("Error clearing interrupt");
       #endif
     }
   }
