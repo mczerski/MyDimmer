@@ -1,8 +1,10 @@
 // Enable debug prints to serial monitor
-//#define MY_DEBUG
+#define MY_DEBUG
+#define MY_BAUD_RATE 115200
 //#define MYS_TOOLKIT_DEBUG
+//#define MYS_TOOLKIT_SERIAL Serial
 
-#define BEDROOM1_SHELF
+#define TEST
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "2"
 #define SKETCH_MINOR_VER "7"
@@ -80,6 +82,16 @@
 #endif
 
 #ifdef TEST
+//HardwareSerial mySerial(PA3, PA2);
+//#define MY_SERIALDEVICE mySerial
+//#undef MY_RADIO_RFM69
+//#undef MY_OTA_FIRMWARE_FEATURE
+//#define MY_RS485
+//#define MY_RS485_DE_PIN PA8
+//#define MY_RS485_BAUD_RATE 115200
+//#define MY_RS485_HWSERIAL Serial
+//#define MY_DEBUG_VERBOSE_RS485
+
 #define MY_NODE_ID 13
 #define MY_DEBUG
 #define MY_DEBUG_VERBOSE_RFM69
@@ -87,12 +99,15 @@
 #define MY_SIGNAL_REPORT_ENABLED
 #undef MY_RFM69_CS_PIN
 #define MY_RFM69_CS_PIN 10
+#define MY_RFM69_IRQ_PIN 2
 #undef SKETCH_NAME
 #define SKETCH_NAME "Test"
 #define SKETCH_SUBNAME ""
 #endif
 
+#if defined(ARDUINO_ARCH_AVR)
 #include <avr/wdt.h>
+#endif
 #include <MySensors.h>
 #include <MySensorsToolkit.h>
 #include "BounceSwitch.h"
@@ -262,11 +277,13 @@ DS18B20RequestableValue tempSensor(TEMP_PIN, 6, Duration(60000));
 void setup()
 {
   Duration::setClockPrescaler(CLOCK_PRESCALER);
-  Serial.begin(115200);
   ActuatorBase::begin();
-  #ifdef USE_APDS9930
+#ifdef USE_APDS9930
   myApds.init();
-  #endif
+#endif
+#if defined(ARDUINO_ARCH_AVR)
+  wdt_enable(WDTO_8S);
+#endif
 }
 
 void presentation() {
@@ -276,7 +293,6 @@ void presentation() {
   // Register the LED Dimmable Light with the gateway
   ActuatorBase::present();
 
-  wdt_enable(WDTO_8S);
 }
 
 /***
@@ -284,7 +300,9 @@ void presentation() {
  */
 void loop()
 {
+#if defined(ARDUINO_ARCH_AVR)
   wdt_reset();
+#endif
   #ifdef USE_APDS9930
   myApds.update();
   #endif
