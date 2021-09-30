@@ -82,15 +82,15 @@
 #endif
 
 #ifdef TEST
-//HardwareSerial mySerial(PA3, PA2);
-//#define MY_SERIALDEVICE mySerial
-//#undef MY_RADIO_RFM69
-//#undef MY_OTA_FIRMWARE_FEATURE
-//#define MY_RS485
-//#define MY_RS485_DE_PIN PA8
-//#define MY_RS485_BAUD_RATE 115200
-//#define MY_RS485_HWSERIAL Serial
-//#define MY_DEBUG_VERBOSE_RS485
+HardwareSerial mySerial(PA3, PA2);
+#define MY_SERIALDEVICE mySerial
+#undef MY_RADIO_RFM69
+#undef MY_OTA_FIRMWARE_FEATURE
+#define MY_RS485
+#define MY_RS485_DE_PIN PA8
+#define MY_RS485_BAUD_RATE 115200
+#define MY_RS485_HWSERIAL Serial
+#define MY_DEBUG_VERBOSE_RS485
 
 #define MY_NODE_ID 13
 #define MY_DEBUG
@@ -231,9 +231,12 @@ BounceSwitch sw4(A4, Duration(50), true);
 
 #ifdef TEST
 #define CLOCK_PRESCALER CLOCK_PRESCALER_1
-#define SCENE1
-#define SCENE1_ENABLE_SHORT true
-BounceSwitch sw1(3, Duration(50), true);
+#define DIMMER1
+BounceSwitch sw1(PB9, Duration(50), true);
+SimpleDimmer dim1(PC13, true, 10, {.slowDimming = 1, .fullBrightness = 1});
+//#define SCENE1
+//#define SCENE1_ENABLE_SHORT true
+//BounceSwitch sw1(PA0, Duration(50), true);
 #endif
 
 #ifdef DIMMER1
@@ -303,9 +306,9 @@ void loop()
 #if defined(ARDUINO_ARCH_AVR)
   wdt_reset();
 #endif
-  #ifdef USE_APDS9930
+#ifdef USE_APDS9930
   myApds.update();
-  #endif
+#endif
   ActuatorBase::update();
 }
 
