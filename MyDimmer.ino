@@ -7,7 +7,7 @@
 #define TEST
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "2"
-#define SKETCH_MINOR_VER "7"
+#define SKETCH_MINOR_VER "8"
 
 // Enable and select radio type attached
 #define MY_RADIO_RFM69
@@ -60,7 +60,6 @@
 #define MY_NODE_ID 35
 #undef MY_RFM69_CS_PIN
 #define MY_RFM69_CS_PIN 10
-//#define MY_REPEATER_FEATURE
 #define SKETCH_SUBNAME "LargeBedroom"
 #define MY_IS_RFM69HW
 #endif
@@ -198,7 +197,7 @@ SimpleDimmer dim2(5, true, 10, {.slowDimming=0, .fullBrightness=0});
 #define DIMMER1
 #define SCENE2
 #define SCENE2_ENABLE_SHORT true
-BounceSwitch sw1(A0, Duration(50), true);
+BounceSwitch sw1(4, Duration(50), true);
 BounceSwitch sw2(3, Duration(50), true);
 SimpleDimmer dim1(5, true, 10, {.slowDimming=1, .fullBrightness=1});
 #endif
@@ -208,7 +207,7 @@ SimpleDimmer dim1(5, true, 10, {.slowDimming=1, .fullBrightness=1});
 #define DIMMER1
 #define SCENE2
 #define SCENE2_ENABLE_SHORT true
-BounceSwitch sw1(A0, Duration(50), true);
+BounceSwitch sw1(4, Duration(50), true);
 BounceSwitch sw2(3, Duration(50), true);
 SimpleDimmer dim1(5, true, 10, {.slowDimming=1, .fullBrightness=1});
 #endif
