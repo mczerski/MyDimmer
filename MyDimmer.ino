@@ -1,13 +1,13 @@
 // Enable debug prints to serial monitor
-#define MY_DEBUG
+//#define MY_DEBUG
 #define MY_BAUD_RATE 115200
 //#define MYS_TOOLKIT_DEBUG
 //#define MYS_TOOLKIT_SERIAL Serial
 
-#define TEST
+#define BEDROOM1_LAMP
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "2"
-#define SKETCH_MINOR_VER "8"
+#define SKETCH_MINOR_VER "9"
 
 // Enable and select radio type attached
 #define MY_RADIO_RFM69
@@ -64,6 +64,13 @@
 #define MY_IS_RFM69HW
 #endif
 
+#ifdef BEDROOM1_LAMP
+#define MY_NODE_ID 36
+#undef MY_RFM69_CS_PIN
+#define MY_RFM69_CS_PIN 10
+#define SKETCH_SUBNAME "LargeBedroomLamp"
+#endif
+
 #ifdef BEDROOM2
 #define MY_NODE_ID 34
 #undef MY_RFM69_CS_PIN
@@ -115,6 +122,7 @@ HardwareSerial mySerial(PA3, PA2);
 #include "DS18B20RequestableValue.h"
 #include "MiLightRelay.h"
 #include "MiLightDimmer.h"
+#include "PWMSwitch.h"
 #include <MySensorsToolkit/Actuator/DimmerActuator.h>
 #include <MySensorsToolkit/Actuator/RelayActuator.h>
 #include <MySensorsToolkit/Actuator/SceneController.h>
@@ -200,6 +208,13 @@ SimpleDimmer dim2(5, true, 10, {.slowDimming=0, .fullBrightness=0});
 BounceSwitch sw1(4, Duration(50), true);
 BounceSwitch sw2(3, Duration(50), true);
 SimpleDimmer dim1(5, true, 10, {.slowDimming=1, .fullBrightness=1});
+#endif
+
+#ifdef BEDROOM1_LAMP
+#define CLOCK_PRESCALER CLOCK_PRESCALER_1
+#define DIMMER1
+PWMSwitch sw1(3, false);
+SimpleDimmer dim1(5, false, 10, {.slowDimming=1, .fullBrightness=1});
 #endif
 
 #ifdef BEDROOM2
