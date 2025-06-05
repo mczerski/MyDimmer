@@ -6,7 +6,7 @@ extern HardwareSerial MYS_TOOLKIT_SERIAL;
 
 namespace mys_toolkit {
 
-void MiLightDimmer::setLevel_(uint8_t level)
+void MiLightDimmerDriver::setLevel(uint8_t level)
 {
   level = round(10.0*level/255);
   int8_t diff = level - currentLevel_;
@@ -41,14 +41,13 @@ void MiLightDimmer::setLevel_(uint8_t level)
   currentLevel_ = level;
 }
 
-MiLightDimmer::MiLightDimmer(AbstractPL1167 &pl1167, uint16_t deviceId, uint8_t groupId,
-                             bool inverted, uint8_t dimmSpeed, Functions functions)
-  : Dimmer(inverted, dimmSpeed, functions),
+MiLightDimmerDriver::MiLightDimmerDriver(AbstractPL1167 &pl1167, uint16_t deviceId, uint8_t groupId, bool inverted)
+  : DimmerDriver(inverted),
     bulb_(pl1167, deviceId, groupId)
 {
 }
 
-void MiLightDimmer::begin()
+void MiLightDimmerDriver::begin()
 {
   if (bulb_.begin() != 0) {
     #ifdef MYS_TOOLKIT_DEBUG

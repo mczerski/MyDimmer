@@ -7,7 +7,7 @@
 #define BEDROOM1_LAMP
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "2"
-#define SKETCH_MINOR_VER "10"
+#define SKETCH_MINOR_VER "12"
 
 // Enable and select radio type attached
 #define MY_RADIO_RFM69
@@ -141,13 +141,16 @@ MyAPDS9930 myApds(APDS9930_INT, APDS9930_NUM);
 BounceSwitch sw1(A1, Duration(50), true);
 BounceSwitch sw2(A2, Duration(50), true);
 BounceSwitch sw3(A3, Duration(50), true);
-CwWwDimmer dim1(9, 10, false, 10, {.slowDimming=1, .fullBrightness=1});
-SimpleDimmer dim2(3, false, 10, {.slowDimming=1, .fullBrightness=1});
+CwWwDimmerDriver dimDrv1(9, 10, false);
+PushPullDimmer dim1(dimDrv1, 10, {.slowDimming=1, .fullBrightness=1});
+SimpleDimmerDriver dimDrv2(3, false);
+PushPullDimmer dim2(dimDrv2, 10, {.slowDimming=1, .fullBrightness=1});
 #define NRF24_CE_PIN 7
 #define NRF24_CSN_PIN 6
 RF24 nrf24Radio(NRF24_CE_PIN, NRF24_CSN_PIN);
 PL1167_nRF24 pl1167(nrf24Radio);
-MiLightDimmer dim3(pl1167, 0xF2EA, 4, false, 10, {.slowDimming=1, .fullBrightness=1});
+MiLightDimmerDriver dimDrv3(pl1167, 0xF2EA, 4, false);
+PushPullDimmer dim3(dimDrv3, 10, {.slowDimming=1, .fullBrightness=1});
 #endif
 
 #ifdef LIVINGROOM
@@ -214,7 +217,8 @@ SimpleDimmer dim1(5, true, 10, {.slowDimming=1, .fullBrightness=1});
 #define CLOCK_PRESCALER CLOCK_PRESCALER_1
 #define DIMMER1
 PWMSwitch sw1(3, false);
-SimpleDimmer dim1(5, false, 10, {.slowDimming=1, .fullBrightness=1});
+SimpleDimmerDriver dimDrv1(5, false);
+PushDimmer dim1(dimDrv1, 10);
 #endif
 
 #ifdef BEDROOM2
