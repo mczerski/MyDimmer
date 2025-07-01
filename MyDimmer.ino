@@ -4,7 +4,7 @@
 //#define MYS_TOOLKIT_DEBUG
 //#define MYS_TOOLKIT_SERIAL Serial
 
-#define BEDROOM1_LAMP
+#define BATHROOM1_MOTION
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "2"
 #define SKETCH_MINOR_VER "12"
@@ -87,6 +87,15 @@
 #define SKETCH_SUBNAME "Livingroom"
 #endif
 
+#ifdef BATHROOM1_MOTION
+#define MY_NODE_ID 29
+#undef MY_RFM69_CS_PIN
+#define MY_RFM69_CS_PIN 10
+#undef SKETCH_NAME
+#define SKETCH_NAME "Motion"
+#define SKETCH_SUBNAME "LargeBathroom"
+#endif
+
 #ifdef TEST
 HardwareSerial mySerial(PA3, PA2);
 #define MY_SERIALDEVICE mySerial
@@ -126,6 +135,7 @@ HardwareSerial mySerial(PA3, PA2);
 #include <MySensorsToolkit/Actuator/DimmerActuator.h>
 #include <MySensorsToolkit/Actuator/RelayActuator.h>
 #include <MySensorsToolkit/Actuator/SceneController.h>
+#include <MySensorsToolkit/Actuator/MotionSensor2.h>
 
 using namespace mys_toolkit;
 
@@ -245,6 +255,11 @@ BounceSwitch sw1(5, Duration(50), true);
 BounceSwitch sw2(6, Duration(50), true);
 BounceSwitch sw3(A5, Duration(50), true);
 BounceSwitch sw4(A4, Duration(50), true);
+#endif
+
+#ifdef BATHROOM1_MOTION
+#define CLOCK_PRESCALER CLOCK_PRESCALER_1
+MotionSensor2 motion1(0, 3);
 #endif
 
 #ifdef TEST
