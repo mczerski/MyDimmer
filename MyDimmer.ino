@@ -91,9 +91,20 @@
 #define MY_NODE_ID 29
 #undef MY_RFM69_CS_PIN
 #define MY_RFM69_CS_PIN 10
+#define MY_OTA_FLASH_JDECID 0xC840
 #undef SKETCH_NAME
 #define SKETCH_NAME "Motion"
 #define SKETCH_SUBNAME "LargeBathroom"
+#endif
+
+#ifdef BATHROOM2_MOTION
+#define MY_NODE_ID 30
+#undef MY_RFM69_CS_PIN
+#define MY_RFM69_CS_PIN 10
+#define MY_OTA_FLASH_JDECID 0xC840
+#undef SKETCH_NAME
+#define SKETCH_NAME "Motion"
+#define SKETCH_SUBNAME "SmallBathroom"
 #endif
 
 #ifdef TEST
@@ -258,6 +269,11 @@ BounceSwitch sw4(A4, Duration(50), true);
 #endif
 
 #ifdef BATHROOM1_MOTION
+#define CLOCK_PRESCALER CLOCK_PRESCALER_1
+MotionSensor2 motion1(0, 3);
+#endif
+
+#ifdef BATHROOM2_MOTION
 #define CLOCK_PRESCALER CLOCK_PRESCALER_1
 MotionSensor2 motion1(0, 3);
 #endif
