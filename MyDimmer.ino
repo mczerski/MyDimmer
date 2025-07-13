@@ -4,7 +4,7 @@
 //#define MYS_TOOLKIT_DEBUG
 //#define MYS_TOOLKIT_SERIAL Serial
 
-#define BATHROOM1_MOTION
+#define BEDROOM1_SHELF
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "2"
 #define SKETCH_MINOR_VER "12"
@@ -220,8 +220,10 @@ SimpleDimmer dim1(10, false, 10, {.slowDimming=1, .fullBrightness=1});
 #define SCENE2_ENABLE_SHORT false
 APDS9930Switch sw1(myApds, 0);
 APDS9930Switch sw2(myApds, 1);
-SimpleDimmer dim1(3, true, 10, {.slowDimming=0, .fullBrightness=0});
-SimpleDimmer dim2(5, true, 10, {.slowDimming=0, .fullBrightness=0});
+SimpleDimmerDriver dimDrv1(3, true);
+SimpleDimmerDriver dimDrv2(5, true);
+PushPullDimmer dim1(dimDrv1, 10, {.slowDimming=0, .fullBrightness=0});
+PushPullDimmer dim2(dimDrv2, 10, {.slowDimming=0, .fullBrightness=0});
 #endif
 
 #ifdef BEDROOM1
@@ -328,6 +330,7 @@ DS18B20RequestableValue tempSensor(TEMP_PIN, 6, Duration(60000));
  */
 void setup()
 {
+  Serial.println("Hello");
   Duration::setClockPrescaler(CLOCK_PRESCALER);
   ActuatorBase::begin();
 #ifdef USE_APDS9930
