@@ -32,43 +32,16 @@ uint8_t MyAPDS9930::pcaGet_()
 void MyAPDS9930::init_(uint8_t i)
 {
   pcaSelect_(i);
-  bool status = apds_[i].init();
-  #ifdef MYS_TOOLKIT_DEBUG
-  MYS_TOOLKIT_SERIAL.print(F("APDS-9930 initializing sensor #"));
-  MYS_TOOLKIT_SERIAL.println(i);
-  if (status) {
-    MYS_TOOLKIT_SERIAL.println(F("APDS-9930 initialization complete"));
-  } else {
-    MYS_TOOLKIT_SERIAL.println(F("Something went wrong during APDS-9930 init!"));
-  }
-  #endif
-  status = apds_[i].enableProximitySensor(true);
-  #ifdef MYS_TOOLKIT_DEBUG
-  if (status) {
-    MYS_TOOLKIT_SERIAL.println(F("Proximity sensor is now running"));
-  } else {
-    MYS_TOOLKIT_SERIAL.println(F("Something went wrong during sensor init!"));
-  }
-  #endif
-  status = apds_[i].setProximityGain(PGAIN_1X);
-  #ifdef MYS_TOOLKIT_DEBUG
-  if (!status) {
-    MYS_TOOLKIT_SERIAL.println(F("Something went wrong trying to set PGAIN"));
-  }
-  #endif
-  status = apds_[i].setProximityIntLowThreshold(PROX_INT_LOW);
-  #ifdef MYS_TOOLKIT_DEBUG
-  if (!status) {
-    MYS_TOOLKIT_SERIAL.println(F("Error writing low threshold"));
-  }
-  #endif
-  status = apds_[i].setProximityIntHighThreshold(PROX_INT_HIGH);
-  #ifdef MYS_TOOLKIT_DEBUG
-  if (!status) {
-    MYS_TOOLKIT_SERIAL.println(F("Error writing high threshold"));
-  }
-  #endif
-  (void)status;
+  apds_status_[i] = apds_[i].init();
+  if (!apds_status_[i]) return;
+  apds_status_[i] = apds_[i].enableProximitySensor(true);
+  if (!apds_status_[i]) return;
+  apds_status_[i] = apds_[i].setProximityGain(PGAIN_1X);
+  if (!apds_status_[i]) return;
+  apds_status_[i] = apds_[i].setProximityIntLowThreshold(PROX_INT_LOW);
+  if (!apds_status_[i]) return;
+  apds_status_[i] = apds_[i].setProximityIntHighThreshold(PROX_INT_HIGH);
+  if (!apds_status_[i]) return;
 }
 
 bool MyAPDS9930::update_(uint8_t i)
@@ -115,6 +88,11 @@ void MyAPDS9930::init()
 
 void MyAPDS9930::update()
 {
+  for (uint8_t i=0; i<apdsNum_; i++) {
+    if (!apds_status_[i]) {
+      init_(i);
+    }
+  }
   uint8_t pca = pcaGet_();
   apdsInts_ &= pca;
   if (pca) {

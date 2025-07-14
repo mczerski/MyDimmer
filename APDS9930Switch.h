@@ -14,6 +14,7 @@ class MyAPDS9930 {
   int apdsNum_ = 0;
   APDS9930 apds_[MAX_APDS9930_NUM];
   uint8_t apdsInts_;
+  bool apds_status_[MAX_APDS9930_NUM];
   static const int PCAADDR = 0x70;
   static const int PROX_INT_HIGH = 900; // Proximity level for interrupt
   static const int PROX_INT_LOW = 0;  // No far interrupt

@@ -7,7 +7,7 @@
 #define BEDROOM1_SHELF
 #define SKETCH_NAME "Dimmer"
 #define SKETCH_MAJOR_VER "2"
-#define SKETCH_MINOR_VER "12"
+#define SKETCH_MINOR_VER "13"
 
 // Enable and select radio type attached
 #define MY_RADIO_RFM69
